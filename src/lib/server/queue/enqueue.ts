@@ -1,118 +1,39 @@
 import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
 import { publish } from '../events.ts';
-import {
-	getAlbum,
-	getArtistReleases,
-	getPlaylist,
-	getSong,
-	type AlbumDetail,
-	type SongResult
-} from '../ytmusic/api.ts';
+import { resolveChannel, resolvePlaylist, resolveVideo, type VideoResult } from '../ytdlp/metadata.ts';
 import type { Batch, JobMeta, NewTrack } from './store.ts';
 import { createBatch, findCompletedDownload } from './store.ts';
 
 export type EnqueueRequest =
-	| { kind: 'song'; videoId: string; albumBrowseId?: string }
-	| { kind: 'album'; browseId: string }
-	| { kind: 'playlist'; browseId: string; syncJellyfin?: boolean }
-	| { kind: 'artist'; browseId: string };
+	| { kind: 'video'; videoId: string }
+	| { kind: 'playlist'; playlistId: string; syncJellyfin?: boolean }
+	| { kind: 'channel'; ref: string; limit?: number };
 
-/** YT Music's already-separated credits, or undefined when it listed none. */
-function names(artists: { name: string }[]): string[] | undefined {
-	return artists.length > 0 ? artists.map((a) => a.name) : undefined;
-}
-
-function albumTrackMeta(album: AlbumDetail): NewTrack[] {
-	const albumArtist = album.artists[0]?.name ?? 'Unknown Artist';
-	const thumbnail = album.thumbnails.at(-1)?.url;
-	return album.tracks
-		.filter((t) => t.isAvailable && t.videoId)
-		.map((t) => ({
-			videoId: t.videoId as string,
+/**
+ * Map resolved videos to jobs, flagging any already in the library so they are
+ * skipped rather than re-downloaded (`NewTrack.existingPath`). Shared by
+ * playlist, channel, and subscription expansion.
+ */
+export function buildVideoJobs(videos: VideoResult[], db: DB = getDb()): NewTrack[] {
+	return videos
+		.filter((v) => v.videoId)
+		.map((v) => ({
+			videoId: v.videoId,
+			existingPath: findCompletedDownload(v.videoId, db) ?? undefined,
 			meta: {
-				title: t.title,
-				artist: t.artists.map((a) => a.name).join(', ') || albumArtist,
-				album: album.title,
-				albumArtist,
-				// YT Music already separates the credits - no need to re-derive them.
-				artists: names(t.artists) ?? names(album.artists),
-				albumArtists: names(album.artists),
-				year: album.year ?? undefined,
-				trackNumber: t.trackNumber,
-				totalTracks: album.trackCount,
-				thumbnail,
-				albumBrowseId: album.browseId
+				title: v.title,
+				channel: v.channel.name,
+				channelId: v.channel.id,
+				thumbnail: v.thumbnails.at(-1)?.url,
+				uploadDate: v.uploadDate,
+				duration: v.duration
 			} satisfies JobMeta
 		}));
 }
 
 /**
- * Map playlist tracks to jobs, flagging any already in the library so they are
- * skipped rather than re-downloaded (`NewTrack.existingPath`). Shared by the
- * manual playlist download and the recommendation expansion.
- *
- * A track keeps its own album; one that belongs to no album files under its own
- * title (a single is its own album), never under the playlist name - bundling
- * unrelated tracks into a fake playlist-named album is exactly what we avoid.
- * Callers that source album-less tracks (recommendations) should run them
- * through `resolveAlbums` first so real albums survive this mapping.
- *
- * A playlist's position is not a track number - it reflects playlist order, not
- * the track's place on its album. Leave `trackNumber` unset here; MusicBrainz
- * enrichment (see `musicbrainz/client.ts`) fills in the real number when it can
- * find one, and tagging simply omits the field otherwise.
- */
-export function buildPlaylistTracks(tracks: SongResult[], db: DB = getDb()): NewTrack[] {
-	return tracks.map((t) => ({
-		videoId: t.videoId,
-		existingPath: findCompletedDownload(t.videoId, db) ?? undefined,
-		meta: {
-			title: t.title,
-			artist: t.artists.map((a) => a.name).join(', ') || 'Unknown Artist',
-			album: t.album?.name || t.title,
-			albumArtist: t.artists[0]?.name,
-			artists: names(t.artists),
-			albumArtists: names(t.artists),
-			thumbnail: t.thumbnails.at(-1)?.url,
-			albumBrowseId: t.album?.id ?? undefined
-		} satisfies JobMeta
-	}));
-}
-
-/**
- * Enqueue a single album by its browseId as one batch. Returns the batch, or
- * `null` when the album resolves but has no downloadable tracks. Throws when the
- * album itself can't be fetched, so callers can distinguish a transient failure
- * (retry later) from an empty release (skip permanently).
- */
-export async function enqueueAlbumById(
-	browseId: string,
-	userId: string,
-	fallbackArtist: string | undefined,
-	db: DB = getDb()
-): Promise<Batch | null> {
-	const album = await getAlbum(browseId);
-	const tracks = albumTrackMeta(album);
-	if (tracks.length === 0) return null;
-	const { batch } = createBatch(
-		{
-			kind: 'album',
-			sourceId: album.browseId,
-			title: album.title,
-			artist: album.artists[0]?.name ?? fallbackArtist,
-			thumbnail: album.thumbnails.at(-1)?.url,
-			createdBy: userId
-		},
-		tracks,
-		db
-	);
-	return batch;
-}
-
-/**
- * Expand a user request into one or more batches of per-track jobs.
- * Artist requests become one batch per release so progress reads naturally.
+ * Expand a user request into one batch of per-video jobs.
  */
 export async function enqueue(
 	request: EnqueueRequest,
@@ -122,47 +43,25 @@ export async function enqueue(
 	const batches: Batch[] = [];
 
 	switch (request.kind) {
-		case 'song': {
-			// Prefer the album context (gives real track numbers / total). Fall back to
-			// the song's own metadata for standalone tracks that belong to no album.
-			let track: NewTrack | undefined;
-			if (request.albumBrowseId) {
-				try {
-					const album = await getAlbum(request.albumBrowseId);
-					track = albumTrackMeta(album).find((t) => t.videoId === request.videoId);
-				} catch {
-					// Fall back to song details on fetch/lookup failure
+		case 'video': {
+			const video = await resolveVideo(request.videoId);
+			const track: NewTrack = {
+				videoId: video.videoId,
+				meta: {
+					title: video.title,
+					channel: video.channel.name,
+					channelId: video.channel.id,
+					thumbnail: video.thumbnails.at(-1)?.url,
+					uploadDate: video.uploadDate,
+					duration: video.duration
 				}
-			}
-			if (!track) {
-				const song = await getSong(request.videoId);
-				if (song.album?.id) {
-					try {
-						const album = await getAlbum(song.album.id);
-						track = albumTrackMeta(album).find((t) => t.videoId === request.videoId);
-					} catch {
-						// Fall back to song's own metadata
-					}
-				}
-				track ??= {
-					videoId: request.videoId,
-					meta: {
-						title: song.title,
-						artist: song.artists.map((a) => a.name).join(', ') || 'Unknown Artist',
-						album: song.album?.name || song.title,
-						albumArtist: song.artists[0]?.name,
-						artists: names(song.artists),
-						albumArtists: names(song.artists),
-						thumbnail: song.thumbnails.at(-1)?.url
-					}
-				};
-			}
+			};
 			const { batch } = createBatch(
 				{
-					kind: 'song',
-					sourceId: request.videoId,
-					title: track.meta.title,
-					artist: track.meta.artist,
+					kind: 'video',
+					sourceId: video.videoId,
+					title: video.title,
+					channel: video.channel.name,
 					thumbnail: track.meta.thumbnail,
 					createdBy: userId
 				},
@@ -173,34 +72,15 @@ export async function enqueue(
 			break;
 		}
 
-		case 'album': {
-			const album = await getAlbum(request.browseId);
-			const tracks = albumTrackMeta(album);
-			const { batch } = createBatch(
-				{
-					kind: 'album',
-					sourceId: request.browseId,
-					title: album.title,
-					artist: album.artists[0]?.name,
-					thumbnail: album.thumbnails.at(-1)?.url,
-					createdBy: userId
-				},
-				tracks,
-				db
-			);
-			batches.push(batch);
-			break;
-		}
-
 		case 'playlist': {
-			const playlist = await getPlaylist(request.browseId);
-			const tracks = buildPlaylistTracks(playlist.tracks, db);
+			const playlist = await resolvePlaylist(request.playlistId);
+			const tracks = buildVideoJobs(playlist.videos, db);
 			const { batch } = createBatch(
 				{
 					kind: 'playlist',
-					sourceId: request.browseId,
+					sourceId: request.playlistId,
 					title: playlist.title,
-					artist: playlist.author ?? undefined,
+					channel: playlist.channel?.name,
 					thumbnail: playlist.thumbnails.at(-1)?.url,
 					createdBy: userId,
 					syncJellyfin: request.syncJellyfin !== false
@@ -212,23 +92,22 @@ export async function enqueue(
 			break;
 		}
 
-		case 'artist': {
-			const artist = await getArtistReleases(request.browseId);
-			if (artist.releases.length === 0) throw new Error('artist has no downloadable releases');
-			// Fetch album details with modest parallelism; skip releases that 404.
-			const CHUNK = 4;
-			for (let i = 0; i < artist.releases.length; i += CHUNK) {
-				const details = await Promise.all(
-					artist.releases
-						.slice(i, i + CHUNK)
-						.map((release) =>
-							enqueueAlbumById(release.browseId, userId, artist.name, db).catch(() => null)
-						)
-				);
-				for (const batch of details) {
-					if (batch) batches.push(batch);
-				}
-			}
+		case 'channel': {
+			const channel = await resolveChannel(request.ref, { limit: request.limit });
+			const tracks = buildVideoJobs(channel.videos, db);
+			const { batch } = createBatch(
+				{
+					kind: 'channel',
+					sourceId: channel.ref,
+					title: channel.name,
+					channel: channel.name,
+					thumbnail: channel.thumbnails.at(-1)?.url,
+					createdBy: userId
+				},
+				tracks,
+				db
+			);
+			batches.push(batch);
 			break;
 		}
 	}

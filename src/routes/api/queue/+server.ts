@@ -15,8 +15,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	} catch {
 		return json({ error: 'invalid JSON body' }, { status: 400 });
 	}
-	if (!['song', 'album', 'playlist', 'artist'].includes(body?.kind)) {
-		return json({ error: 'kind must be song | album | playlist | artist' }, { status: 400 });
+	if (!['video', 'channel', 'playlist'].includes(body?.kind)) {
+		return json({ error: 'kind must be video | channel | playlist' }, { status: 400 });
 	}
 	try {
 		const batches = await enqueue(body, locals.session!.userId);

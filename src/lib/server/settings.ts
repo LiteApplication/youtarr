@@ -2,20 +2,18 @@ import type { DB } from './db/index.ts';
 import { getDb } from './db/index.ts';
 
 export interface Settings {
-	/** Audio container/codec passed to yt-dlp --audio-format. */
-	audioFormat: 'opus' | 'm4a' | 'mp3' | 'flac';
-	/** yt-dlp --audio-quality (0 best … 10 worst; VBR scale for mp3). */
-	audioQuality: number;
+	/** Container passed to yt-dlp --merge-output-format / preferred remux target. */
+	videoFormat: 'mp4' | 'mkv' | 'webm';
+	/** Maximum resolution (vertical pixels) to request; 'best' = no cap. */
+	maxResolution: '2160' | '1440' | '1080' | '720' | '480' | 'best';
 	/** Parallel downloads. */
 	concurrency: number;
 	/** Retry attempts per job before it is marked failed. */
 	maxRetries: number;
-	/** Path template inside the music library. */
+	/** Path template inside the media library. */
 	namingTemplate: string;
-	/** Remove non-music segments via SponsorBlock. */
+	/** Strip sponsor/self-promo/intro segments via SponsorBlock. */
 	sponsorBlock: boolean;
-	/** Enrich tags via MusicBrainz. */
-	musicBrainz: boolean;
 	/** Trigger a Jellyfin library refresh when a batch completes. */
 	jellyfinRefresh: boolean;
 	/** Optional yt-dlp rate limit, e.g. "4M". Empty = unlimited. */
@@ -23,39 +21,34 @@ export interface Settings {
 	/**
 	 * yt-dlp YouTube player client(s), passed as
 	 * `--extractor-args youtube:player_client=<value>`. Overrides yt-dlp's default
-	 * client selection, which for music.youtube.com URLs is `web_music` - a client
-	 * that now demands a GVS PO Token and otherwise yields no audio formats
-	 * ("Requested format is not available"). Comma-separated; empty = yt-dlp default.
+	 * client selection when it stops yielding downloadable formats (e.g. a client
+	 * that now demands a GVS PO Token). Comma-separated; empty = yt-dlp default.
 	 */
 	ytdlpPlayerClient: string;
 	/** Jellyfin server URL, set during the setup wizard. */
 	jellyfinUrl: string;
-	/** Jellyfin library path for music, chosen during setup. */
+	/** Jellyfin library path for saved videos, chosen during setup. */
 	jellyfinLibraryPath: string;
-	/** Auto-download new releases from subscribed artists on a schedule. */
+	/** Auto-download new uploads from subscribed channels on a schedule. */
 	subscriptionsEnabled: boolean;
-	/** How often (hours) to poll a subscribed artist for new releases. */
+	/** How often (hours) to poll a subscribed channel / synced playlist for new videos. */
 	subscriptionCheckHours: number;
-	/** Daily "radio" expansion of recommendation playlists. Reuses the same cadence. */
-	recommendationsEnabled: boolean;
 }
 
 export const defaults: Settings = {
-	audioFormat: 'opus',
-	audioQuality: 0,
+	videoFormat: 'mp4',
+	maxResolution: '1080',
 	concurrency: 2,
 	maxRetries: 3,
-	namingTemplate: '{albumartist}/{album} ({year})/{track:02} - {title}',
+	namingTemplate: '{channel}/Season {season}/{channel} - S{season}E{episode:03} - {title}',
 	sponsorBlock: true,
-	musicBrainz: true,
 	jellyfinRefresh: true,
 	rateLimit: '',
 	ytdlpPlayerClient: '',
 	jellyfinUrl: '',
 	jellyfinLibraryPath: '',
 	subscriptionsEnabled: true,
-	subscriptionCheckHours: 24,
-	recommendationsEnabled: true
+	subscriptionCheckHours: 24
 };
 
 export function getSettings(db: DB = getDb()): Settings {

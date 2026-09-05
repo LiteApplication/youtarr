@@ -15,7 +15,7 @@ function setEnv(key: string, value: string | undefined) {
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-env-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-env-'));
 });
 
 afterEach(() => {
@@ -48,9 +48,9 @@ describe('readSecret', () => {
 });
 
 describe('paths and flags', () => {
-	it('staging lives inside the music volume (atomic-rename requirement)', () => {
-		setEnv('MUSIC_DIR', '/mnt/gluster/music');
-		expect(stagingDir()).toBe('/mnt/gluster/music/.myoutarr-staging');
+	it('staging lives inside the media volume (atomic-rename requirement)', () => {
+		setEnv('MEDIA_DIR', '/mnt/gluster/media');
+		expect(stagingDir()).toBe('/mnt/gluster/media/.youtarr-staging');
 	});
 
 	it('REQUIRE_ADMIN defaults to true and only "false" disables it', () => {

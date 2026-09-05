@@ -1,39 +1,39 @@
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { musicDir, stagingDir } from '../env.ts';
+import { mediaDir, stagingDir } from '../env.ts';
 
-export const MOUNT_SENTINEL = '.myoutarr-mount-ok';
+export const MOUNT_SENTINEL = '.youtarr-mount-ok';
 
 export class MountMissingError extends Error {
 	constructor(root: string) {
 		super(
-			`Music volume sentinel missing at ${path.join(root, MOUNT_SENTINEL)} - ` +
-				'refusing to write. Is the GlusterFS mount up?'
+			`Media volume sentinel missing at ${path.join(root, MOUNT_SENTINEL)} - ` +
+				'refusing to write. Is the volume mounted?'
 		);
 		this.name = 'MountMissingError';
 	}
 }
 
 /**
- * The bind-mount footgun: if the network mount drops, the empty directory
+ * The bind-mount footgun: if a network mount drops, the empty directory
  * underneath silently absorbs writes that vanish when the mount returns.
  * A sentinel file created at setup proves the real volume is mounted.
  */
-export function assertMounted(root: string = musicDir()): void {
+export function assertMounted(root: string = mediaDir()): void {
 	if (!existsSync(path.join(root, MOUNT_SENTINEL))) {
 		throw new MountMissingError(root);
 	}
 }
 
-export function createSentinel(root: string = musicDir()): void {
+export function createSentinel(root: string = mediaDir()): void {
 	writeFileSync(
 		path.join(root, MOUNT_SENTINEL),
-		'This file tells myoutarr the music volume is mounted. Do not delete.\n'
+		'This file tells youtarr the media volume is mounted. Do not delete.\n'
 	);
 }
 
 /**
- * Publish a finished, fully-tagged file into the library:
+ * Publish a finished download into the library:
  *   1. copy from scratch (tmpfs) into staging *on the library volume*
  *   2. rename() into place - intra-volume, therefore atomic
  *
@@ -47,7 +47,7 @@ export function publishFile(options: {
 	libraryRoot?: string;
 	staging?: string;
 }): void {
-	const root = options.libraryRoot ?? musicDir();
+	const root = options.libraryRoot ?? mediaDir();
 	const staging = options.staging ?? stagingDir();
 	assertMounted(root);
 
@@ -76,9 +76,9 @@ export function publishFile(options: {
 	}
 }
 
-/** Write a sidecar (NFO, cover) next to published music, sentinel-guarded. */
+/** Write a sidecar (NFO, cover art) next to published media, sentinel-guarded. */
 export function writeSidecar(targetPath: string, content: string | Buffer, root?: string): void {
-	assertMounted(root ?? musicDir());
+	assertMounted(root ?? mediaDir());
 	mkdirSync(path.dirname(targetPath), { recursive: true });
 	if (typeof content === 'string') writeFileSync(targetPath, content, 'utf8');
 	else writeFileSync(targetPath, content);

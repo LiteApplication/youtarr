@@ -27,7 +27,7 @@ let dir: string;
 let db: DB;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-queue-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-queue-'));
 	db = openDatabase(path.join(dir, 'test.db'));
 });
 

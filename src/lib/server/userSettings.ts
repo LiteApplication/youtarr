@@ -7,7 +7,7 @@ import { getDb } from './db/index.ts';
  * an unknown or mistyped stored value falls back to it.
  */
 export interface UserSettings {
-	/** Maintain a Jellyfin playlist holding every track this user has added. */
+	/** Maintain a Jellyfin playlist holding every video this user has added. */
 	downloadsPlaylist: boolean;
 	/** Playlist name; empty means "<user name>'s downloads". */
 	downloadsPlaylistName: string;

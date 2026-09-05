@@ -1,38 +1,38 @@
 import { listSubscriptions, subscribe, unsubscribe } from '$lib/server/subscriptions/store';
-import { getArtistReleases } from '$lib/server/ytmusic/api';
+import { assertChannelRef, resolveChannel } from '$lib/server/ytdlp/metadata';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-
-/** YT Music artist channel ids look like `UC…`; validate before hitting the worker. */
-const ARTIST_ID = /^UC[A-Za-z0-9_-]{10,}$/;
 
 export const GET: RequestHandler = ({ locals }) => {
 	return json({ subscriptions: listSubscriptions(locals.session!.userId) });
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	let body: { browseId?: unknown };
+	let body: { channelRef?: unknown };
 	try {
-		body = (await request.json()) as { browseId?: unknown };
+		body = (await request.json()) as { channelRef?: unknown };
 	} catch {
 		return json({ error: 'invalid JSON body' }, { status: 400 });
 	}
-	const browseId = typeof body.browseId === 'string' ? body.browseId : '';
-	if (!ARTIST_ID.test(browseId)) {
-		return json({ error: 'browseId must be a YT Music artist id (UC…)' }, { status: 400 });
+	const channelRef = typeof body.channelRef === 'string' ? body.channelRef : '';
+	try {
+		assertChannelRef(channelRef);
+	} catch (cause) {
+		return json({ error: (cause as Error).message }, { status: 400 });
 	}
 	try {
-		// Seed the seen-set with the current discography so future checks only
-		// enqueue genuinely new releases.
-		const artist = await getArtistReleases(browseId);
+		// Seed the seen-set with the current uploads so future checks only
+		// enqueue genuinely new videos.
+		const channel = await resolveChannel(channelRef, { limit: 50 });
 		const sub = subscribe(
 			{
-				browseId,
-				name: artist.name,
-				thumbnail: artist.thumbnail,
+				channelRef,
+				channelId: channel.channelId,
+				name: channel.name,
+				thumbnail: channel.thumbnails.at(-1)?.url ?? null,
 				createdBy: locals.session!.userId
 			},
-			artist.releases.map((r) => r.browseId)
+			channel.videos.map((v) => v.videoId)
 		);
 		return json({ subscription: sub }, { status: 201 });
 	} catch (cause) {
@@ -41,14 +41,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 };
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
-	let body: { browseId?: unknown };
+	let body: { channelRef?: unknown };
 	try {
-		body = (await request.json()) as { browseId?: unknown };
+		body = (await request.json()) as { channelRef?: unknown };
 	} catch {
 		return json({ error: 'invalid JSON body' }, { status: 400 });
 	}
-	const browseId = typeof body.browseId === 'string' ? body.browseId : '';
-	if (!browseId) return json({ error: 'browseId is required' }, { status: 400 });
-	const removed = unsubscribe(browseId, locals.session!.userId);
+	const channelRef = typeof body.channelRef === 'string' ? body.channelRef : '';
+	if (!channelRef) return json({ error: 'channelRef is required' }, { status: 400 });
+	const removed = unsubscribe(channelRef, locals.session!.userId);
 	return json({ removed });
 };

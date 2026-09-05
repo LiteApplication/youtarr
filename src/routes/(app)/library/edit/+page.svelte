@@ -6,22 +6,26 @@
 	let submitting = $state(false);
 
 	let fields = $derived([
-		{ name: 'title', label: 'Title', value: data.tags.title, required: true },
-		{ name: 'artist', label: 'Artist', value: data.tags.artist, required: true },
-		{ name: 'album', label: 'Album', value: data.tags.album, required: true },
-		{ name: 'albumArtist', label: 'Album artist', value: data.tags.albumartist, required: false },
-		{ name: 'year', label: 'Year', value: data.tags.date?.slice(0, 4), required: false },
-		{ name: 'genre', label: 'Genre', value: data.tags.genre, required: false },
-		{ name: 'trackNumber', label: 'Track #', value: data.tags.tracknumber, required: false }
+		{ name: 'title', label: 'Title', value: data.tags.title, required: true, type: 'text' },
+		{ name: 'channel', label: 'Channel', value: data.tags.showTitle, required: true, type: 'text' },
+		{ name: 'season', label: 'Season', value: data.tags.season, required: true, type: 'text' },
+		{
+			name: 'episode',
+			label: 'Episode #',
+			value: data.tags.episode?.toString(),
+			required: true,
+			type: 'number'
+		},
+		{ name: 'aired', label: 'Upload date', value: data.tags.aired, required: false, type: 'date' }
 	]);
 </script>
 
 <svelte:head>
-	<title>Edit tags - myoutarr</title>
+	<title>Edit metadata - youtarr</title>
 </svelte:head>
 
 <div class="mx-auto max-w-xl">
-	<h1 class="text-3xl font-bold">Edit tags</h1>
+	<h1 class="text-3xl font-bold">Edit metadata</h1>
 	<p class="mt-1 truncate text-sm text-ink-muted">{data.path}</p>
 
 	<form
@@ -41,7 +45,7 @@
 				<span class="mb-1 block text-sm text-ink-muted">{field.label}</span>
 				<input
 					name={field.name}
-					type="text"
+					type={field.type}
 					required={field.required}
 					value={field.value ?? ''}
 					class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink focus:border-accent"
@@ -54,8 +58,8 @@
 		{/if}
 
 		<p class="text-xs text-ink-faint">
-			Saving retags the file, moves it to match the naming template if needed, and rewrites the
-			album and artist NFOs Jellyfin reads.
+			Saving moves the file to match the naming template if needed, and rewrites the episode and
+			show NFOs Jellyfin reads.
 		</p>
 
 		<div class="flex gap-3">
@@ -64,7 +68,7 @@
 				disabled={submitting}
 				class="rounded-full bg-accent px-6 py-2 text-sm font-medium text-accent-ink transition hover:bg-accent-hover disabled:opacity-50"
 			>
-				{submitting ? 'Saving…' : 'Save tags'}
+				{submitting ? 'Saving…' : 'Save'}
 			</button>
 			<a
 				href="/library"

@@ -4,9 +4,9 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
-import { configDir, musicDir, potProviderBaseUrl, scratchDir, ytdlpJsRuntimes } from '../env.ts';
-import { renderTemplate, resolveLibraryPath } from '../library/naming.ts';
-import { albumNfo, artistNfo } from '../library/nfo.ts';
+import { configDir, mediaDir, potProviderBaseUrl, scratchDir, ytdlpJsRuntimes } from '../env.ts';
+import { renderTemplate, resolveLibraryPath, seasonFor } from '../library/naming.ts';
+import { episodeNfo, tvshowNfo } from '../library/nfo.ts';
 import { publishFile, writeSidecar } from '../library/publish.ts';
 import { getJobOwner } from '../queue/store.ts';
 import type { Job, JobMeta } from '../queue/store.ts';
@@ -17,54 +17,46 @@ import { buildYtdlpArgs } from './args.ts';
 import { resolveCookiesFile } from './cookies.ts';
 import { parseProgressLine } from './progress.ts';
 
-const AUDIO_EXTENSIONS = ['opus', 'm4a', 'mp3', 'flac', 'ogg', 'webm'];
+const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'webm', 'm4v'];
 
-/** Fraction of the progress bar given to the download phase; the rest is tag+publish. */
-const DOWNLOAD_SHARE = 0.85;
-
-/**
- * Individual artists to tag with. `meta.artists`/`meta.albumArtists` are set
- * whenever the split is known to be real (YT Music listed them separately, or
- * MusicBrainz confirmed it); otherwise the combined credit stays one value.
- */
-function trackArtists(meta: JobMeta): string[] {
-	return meta.artists ?? [meta.artist];
-}
-
-function albumArtists(meta: JobMeta): string[] {
-	if (meta.albumArtists) return meta.albumArtists;
-	return meta.albumArtist ? [meta.albumArtist] : trackArtists(meta);
-}
+/** Fraction of the progress bar given to the download phase; the rest is publish. */
+const DOWNLOAD_SHARE = 0.92;
 
 export interface PipelineOptions {
 	db?: DB;
 	ytdlpBin?: string;
-	pythonBin?: string;
-	tagScript?: string;
 	libraryRoot?: string;
 	staging?: string;
 	scratchRoot?: string;
 	/** Directory holding per-account cookies (defaults to the config dir). */
 	cookiesRoot?: string;
-	/** Optional metadata enrichment hook (MusicBrainz); identity by default. */
-	enrich?: (meta: JobMeta) => Promise<JobMeta>;
 	fetchImpl?: typeof fetch;
+}
+
+/**
+ * Atomically hand out the next episode number for a (channel, season) pair.
+ * A single UPSERT...RETURNING avoids a race between concurrent downloads of
+ * the same channel.
+ */
+function nextEpisodeNumber(channelId: string, season: string, db: DB): number {
+	const row = db
+		.prepare(
+			`INSERT INTO episode_counters (channel_id, season, next_number) VALUES (?, ?, 2)
+			 ON CONFLICT (channel_id, season) DO UPDATE SET next_number = next_number + 1
+			 RETURNING next_number - 1 AS assigned`
+		)
+		.get(channelId, season) as { assigned: number };
+	return row.assigned;
 }
 
 export class YtdlpPipeline implements JobRunner {
 	private readonly db: DB;
 	private readonly ytdlpBin: string;
-	private readonly pythonBin: string;
-	private readonly tagScript: string;
-	private readonly enrich: (meta: JobMeta) => Promise<JobMeta>;
 	private readonly fetchImpl: typeof fetch;
 
 	constructor(private readonly options: PipelineOptions = {}) {
 		this.db = options.db ?? getDb();
 		this.ytdlpBin = options.ytdlpBin ?? process.env.YTDLP_BIN ?? 'yt-dlp';
-		this.pythonBin = options.pythonBin ?? process.env.YTM_PYTHON ?? 'python3';
-		this.tagScript = options.tagScript ?? process.env.TAG_SCRIPT ?? 'python/tag.py';
-		this.enrich = options.enrich ?? (async (meta) => meta);
 		this.fetchImpl = options.fetchImpl ?? fetch;
 	}
 
@@ -77,23 +69,22 @@ export class YtdlpPipeline implements JobRunner {
 		mkdirSync(scratch, { recursive: true });
 		try {
 			await this.download(job, scratch, onProgress, signal);
-			const audioFile = this.findAudioFile(scratch);
+			const videoFile = this.findVideoFile(scratch);
+			const coverPath = await this.fetchCover(job.meta, scratch, signal);
+			onProgress(0.94);
 
-			const meta = await this.enrich(job.meta).catch(() => job.meta);
-			const coverPath = await this.fetchCover(meta, scratch, signal);
-			await this.tag(audioFile, meta, coverPath, signal);
-			onProgress(0.92);
-
-			const settings = getSettings(this.db);
-			const libraryRoot = this.options.libraryRoot ?? musicDir();
-			const ext = path.extname(audioFile).slice(1);
-			const relative = renderTemplate(settings.namingTemplate, meta);
+			const libraryRoot = this.options.libraryRoot ?? mediaDir();
+			const ext = path.extname(videoFile).slice(1);
+			const channelId = job.meta.channelId ?? job.meta.channel;
+			const season = seasonFor(job.meta);
+			const episode = nextEpisodeNumber(channelId, season, this.db);
+			const relative = renderTemplate(getSettings(this.db).namingTemplate, job.meta, episode, season);
 			const targetPath = resolveLibraryPath(libraryRoot, relative, ext);
 
-			this.publishWithRetryClassification(audioFile, targetPath, job.id, libraryRoot);
+			this.publishWithRetryClassification(videoFile, targetPath, job.id, libraryRoot);
 			onProgress(0.97);
 
-			this.writeSidecars(job, meta, targetPath, coverPath, libraryRoot);
+			this.writeSidecars(job, targetPath, coverPath, libraryRoot, season, episode);
 			onProgress(1);
 			return { outputPath: targetPath };
 		} finally {
@@ -109,7 +100,7 @@ export class YtdlpPipeline implements JobRunner {
 	): Promise<void> {
 		const settings = getSettings(this.db);
 		// Cookies live under CONFIG_DIR, independent of where scratch is (scratch
-		// is now tmpfs, so its parent is no longer /config).
+		// is tmpfs, so its parent is not the media volume).
 		const cookiesRoot = this.options.cookiesRoot ?? configDir();
 		const owner = getJobOwner(job.id, this.db);
 		const args = buildYtdlpArgs({
@@ -157,15 +148,15 @@ export class YtdlpPipeline implements JobRunner {
 		return new RetryableJobError(`failed to start yt-dlp: ${cause.message}`);
 	}
 
-	private findAudioFile(scratch: string): string {
+	private findVideoFile(scratch: string): string {
 		const files = readdirSync(scratch).filter((f) =>
-			AUDIO_EXTENSIONS.includes(path.extname(f).slice(1))
+			VIDEO_EXTENSIONS.includes(path.extname(f).slice(1))
 		);
 		if (files.length === 0) {
-			throw new RetryableJobError('yt-dlp reported success but produced no audio file');
+			throw new RetryableJobError('yt-dlp reported success but produced no video file');
 		}
-		// Prefer the requested container if several remain (e.g. source + extracted).
-		const preferred = files.find((f) => f.startsWith('track.')) ?? files[0];
+		// Prefer the requested container if several remain (e.g. source + remux).
+		const preferred = files.find((f) => f.startsWith('video.')) ?? files[0];
 		return path.join(scratch, preferred);
 	}
 
@@ -187,55 +178,15 @@ export class YtdlpPipeline implements JobRunner {
 		}
 	}
 
-	private tag(
-		audioFile: string,
-		meta: JobMeta,
-		coverPath: string | undefined,
-		signal: AbortSignal
-	): Promise<void> {
-		const metaFile = path.join(path.dirname(audioFile), 'meta.json');
-		writeFileSync(
-			metaFile,
-			JSON.stringify({
-				title: meta.title,
-				// Multi-valued so each credited artist becomes its own Jellyfin artist.
-				artist: trackArtists(meta),
-				album: meta.album,
-				albumartist: albumArtists(meta),
-				date: meta.year,
-				genre: meta.genre,
-				tracknumber: meta.trackNumber,
-				totaltracks: meta.totalTracks,
-				discnumber: meta.discNumber,
-				mb_artist_id: meta.mbArtistId,
-				mb_album_id: meta.mbAlbumId,
-				mb_releasegroup_id: meta.mbReleaseGroupId,
-				cover: coverPath
-			})
-		);
-		return new Promise<void>((resolve, reject) => {
-			const child = spawn(this.pythonBin, [this.tagScript, audioFile, metaFile], {
-				stdio: ['ignore', 'ignore', 'pipe'],
-				signal
-			});
-			let stderr = '';
-			child.stderr.on('data', (chunk) => (stderr += chunk));
-			child.on('error', reject);
-			child.on('close', (code) =>
-				code === 0 ? resolve() : reject(new Error(`tagging failed: ${stderr.slice(0, 500)}`))
-			);
-		});
-	}
-
 	private publishWithRetryClassification(
-		audioFile: string,
+		videoFile: string,
 		targetPath: string,
 		jobId: string,
 		libraryRoot: string
 	): void {
 		try {
 			publishFile({
-				sourcePath: audioFile,
+				sourcePath: videoFile,
 				targetPath,
 				jobId,
 				libraryRoot,
@@ -251,56 +202,48 @@ export class YtdlpPipeline implements JobRunner {
 		}
 	}
 
-	/** album.nfo / artist.nfo / folder.jpg beside the published track. */
+	/** tvshow.nfo (once) + episode NFO + thumbnail, beside the published video. */
 	private writeSidecars(
 		job: Job,
-		meta: JobMeta,
 		targetPath: string,
 		coverPath: string | undefined,
-		libraryRoot: string
+		libraryRoot: string,
+		season: string,
+		episode: number
 	): void {
-		const albumDir = path.dirname(targetPath);
-		const artistDir = path.dirname(albumDir);
-
-		const siblings = this.db
-			.prepare('SELECT meta FROM jobs WHERE batch_id = ? ORDER BY position')
-			.all(job.batchId) as { meta: string }[];
-		const tracks = siblings
-			.map((row) => JSON.parse(row.meta) as JobMeta)
-			.filter((m) => m.album === meta.album)
-			.map((m, index) => ({ position: m.trackNumber ?? index + 1, title: m.title }));
+		const seasonDir = path.dirname(targetPath);
+		const showDir = path.dirname(seasonDir);
+		const meta = job.meta;
 
 		writeSidecar(
-			path.join(albumDir, 'album.nfo'),
-			albumNfo({
-				title: meta.album,
-				albumArtist: meta.albumArtist ?? meta.artist,
-				albumArtists: albumArtists(meta),
-				year: meta.year,
-				genres: meta.genre ? [meta.genre] : [],
-				mbAlbumId: meta.mbAlbumId,
-				mbReleaseGroupId: meta.mbReleaseGroupId,
-				tracks
+			targetPath.replace(/\.[^./\\]+$/, '.nfo'),
+			episodeNfo({
+				title: meta.title,
+				showTitle: meta.channel,
+				season,
+				episode,
+				aired: meta.uploadDate,
+				videoId: job.videoId
 			}),
 			libraryRoot
 		);
 
-		// Only write artist.nfo when the layout actually has an artist directory
-		// (the default template does; a flat custom template may not).
-		if (path.resolve(artistDir) !== path.resolve(libraryRoot)) {
-			writeSidecar(
-				path.join(artistDir, 'artist.nfo'),
-				artistNfo({
-					name: meta.albumArtist ?? meta.artist,
-					mbArtistId: meta.mbArtistId,
-					genres: meta.genre ? [meta.genre] : []
-				}),
-				libraryRoot
-			);
-		}
-
-		if (coverPath && existsSync(coverPath)) {
-			writeSidecar(path.join(albumDir, 'folder.jpg'), readFileSync(coverPath), libraryRoot);
+		// Only write tvshow.nfo the first time this channel's directory appears
+		// (the default template has one; a flat custom template may not have a
+		// separate show directory at all).
+		if (path.resolve(showDir) !== path.resolve(libraryRoot)) {
+			const showNfoPath = path.join(showDir, 'tvshow.nfo');
+			if (!existsSync(showNfoPath)) {
+				writeSidecar(
+					showNfoPath,
+					tvshowNfo({ title: meta.channel, channelId: meta.channelId }),
+					libraryRoot
+				);
+			}
+			const posterPath = path.join(showDir, 'poster.jpg');
+			if (coverPath && existsSync(coverPath) && !existsSync(posterPath)) {
+				writeSidecar(posterPath, readFileSync(coverPath), libraryRoot);
+			}
 		}
 	}
 }

@@ -6,20 +6,13 @@ import {
 	scheduleRefresh,
 	syncPlaylistBatch
 } from './jellyfin/sync.ts';
-import { enrichMeta } from './musicbrainz/client.ts';
 import { WorkerPool } from './queue/worker.ts';
-import {
-	startRecommendationScheduler,
-	stopRecommendationScheduler
-} from './recommendations/scheduler.ts';
-import { getSettings } from './settings.ts';
+import { migrateLegacyCookies } from './ytdlp/cookies.ts';
+import { YtdlpPipeline } from './ytdlp/runner.ts';
 import {
 	startSubscriptionScheduler,
 	stopSubscriptionScheduler
 } from './subscriptions/scheduler.ts';
-import { stopYtMusic } from './ytmusic/client.ts';
-import { migrateLegacyCookies } from './ytdlp/cookies.ts';
-import { YtdlpPipeline } from './ytdlp/runner.ts';
 
 /**
  * Process-wide services. Constructed lazily on first use so `vite build`
@@ -52,9 +45,7 @@ export function getPool(): WorkerPool {
 				{ created_by: string } | undefined;
 			if (batch) scheduleDownloadsPlaylistSync(batch.created_by);
 		});
-		const pipeline = new YtdlpPipeline({
-			enrich: async (meta) => (getSettings().musicBrainz ? enrichMeta(meta) : meta)
-		});
+		const pipeline = new YtdlpPipeline();
 		pool = new WorkerPool(pipeline, {
 			onBatchDrained: (batchId) => {
 				for (const handler of batchDrainedHandlers) {
@@ -65,7 +56,7 @@ export function getPool(): WorkerPool {
 					}
 				}
 			},
-			// As each track of a playlist lands, grow the Jellyfin playlist so it
+			// As each video of a playlist lands, grow the Jellyfin playlist so it
 			// appears progressively rather than only when the whole batch drains.
 			onJobCompleted: (batchId) => {
 				const batch = getDb()
@@ -78,7 +69,7 @@ export function getPool(): WorkerPool {
 		});
 		pool.start();
 
-		// Daily check for new releases from subscribed artists and new songs in
+		// Daily check for new uploads from subscribed channels and new videos in
 		// followed playlists; enqueued batches are picked up by poking this pool,
 		// and any batch already satisfied from the library is reconciled to drain.
 		startSubscriptionScheduler((batchIds) => {
@@ -86,17 +77,9 @@ export function getPool(): WorkerPool {
 			reconcileDrainedBatches(batchIds);
 		});
 
-		// Daily radio expansion of recommendation playlists, on the same cadence.
-		startRecommendationScheduler((batchIds) => {
-			pool?.poke();
-			reconcileDrainedBatches(batchIds);
-		});
-
 		const shutdown = () => {
 			stopSubscriptionScheduler();
-			stopRecommendationScheduler();
 			void pool?.stop();
-			stopYtMusic();
 		};
 		process.once('SIGTERM', shutdown);
 		process.once('SIGINT', shutdown);
@@ -106,7 +89,7 @@ export function getPool(): WorkerPool {
 
 /**
  * Fire the drain reaction for batches that are already fully terminal right
- * after enqueue - e.g. a playlist whose tracks were all already in the library,
+ * after enqueue - e.g. a playlist whose videos were all already in the library,
  * so the worker never runs a job to trigger the drain. Call after `enqueue`.
  */
 export function reconcileDrainedBatches(batchIds: string[]): void {
@@ -126,7 +109,6 @@ export function ensureServices(): void {
 /** Test hook. */
 export function resetApp(): void {
 	stopSubscriptionScheduler();
-	stopRecommendationScheduler();
 	pool = null;
 	batchDrainedHandlers = [];
 }

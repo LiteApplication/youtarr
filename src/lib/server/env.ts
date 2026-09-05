@@ -22,8 +22,8 @@ export function configDir(): string {
 	return path.resolve(process.env.CONFIG_DIR ?? '/config');
 }
 
-export function musicDir(): string {
-	return path.resolve(process.env.MUSIC_DIR ?? '/music');
+export function mediaDir(): string {
+	return path.resolve(process.env.MEDIA_DIR ?? '/media');
 }
 
 /**
@@ -32,16 +32,16 @@ export function musicDir(): string {
  * ever touched by this single process. Defaults to a per-boot dir under the OS
  * temp dir (honours TMPDIR, so a tmpfs mount just works); override with
  * SCRATCH_DIR. publish.ts copies out of here into staging, so scratch living on
- * a different filesystem than /music is expected and safe.
+ * a different filesystem than the media library is expected and safe.
  */
 export function scratchDir(): string {
 	const override = process.env.SCRATCH_DIR?.trim();
-	return override ? path.resolve(override) : path.join(os.tmpdir(), 'myoutarr-scratch');
+	return override ? path.resolve(override) : path.join(os.tmpdir(), 'youtarr-scratch');
 }
 
-/** Staging lives inside the music volume so the final rename is intra-filesystem (atomic). */
+/** Staging lives inside the media volume so the final rename is intra-filesystem (atomic). */
 export function stagingDir(): string {
-	return path.join(musicDir(), '.myoutarr-staging');
+	return path.join(mediaDir(), '.youtarr-staging');
 }
 
 /**

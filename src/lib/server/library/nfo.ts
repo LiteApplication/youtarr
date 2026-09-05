@@ -1,4 +1,4 @@
-/** Jellyfin-compatible NFO sidecars. Values are always XML-escaped. */
+/** Jellyfin-compatible NFO sidecars for a "channel = show, video = episode" library. */
 
 function esc(value: string): string {
 	return value
@@ -13,55 +13,48 @@ function tag(name: string, value: string | undefined | null): string {
 	return value ? `  <${name}>${esc(value)}</${name}>\n` : '';
 }
 
-export interface AlbumNfoInput {
-	title: string;
-	albumArtist: string;
-	/** Credited artists individually, when they are known separately. */
-	albumArtists?: string[];
-	year?: string;
-	genres?: string[];
-	mbAlbumId?: string;
-	mbReleaseGroupId?: string;
-	tracks: { position: number; title: string; duration?: string }[];
+/** YYYYMMDD -> YYYY-MM-DD, as Jellyfin/Kodi NFOs expect. */
+function isoDate(uploadDate: string | undefined): string | undefined {
+	if (!uploadDate || !/^\d{8}$/.test(uploadDate)) return undefined;
+	return `${uploadDate.slice(0, 4)}-${uploadDate.slice(4, 6)}-${uploadDate.slice(6, 8)}`;
 }
 
-export function albumNfo(input: AlbumNfoInput): string {
-	let xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<album>\n';
+export interface TvShowNfoInput {
+	title: string;
+	channelId?: string;
+	plot?: string;
+}
+
+/** One per channel directory, written once (never overwritten by a later download). */
+export function tvshowNfo(input: TvShowNfoInput): string {
+	let xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<tvshow>\n';
 	xml += tag('title', input.title);
-	// One element per credited artist so Jellyfin links each of them.
-	const albumArtists = input.albumArtists?.length ? input.albumArtists : [input.albumArtist];
-	for (const artist of albumArtists) xml += tag('artist', artist);
-	for (const artist of albumArtists) xml += tag('albumartist', artist);
-	xml += tag('year', input.year);
-	for (const genre of input.genres ?? []) xml += tag('genre', genre);
-	xml += tag('musicbrainzalbumid', input.mbAlbumId);
-	xml += tag('musicbrainzreleasegroupid', input.mbReleaseGroupId);
-	for (const track of input.tracks) {
-		xml += '  <track>\n';
-		xml += `    <position>${track.position}</position>\n`;
-		xml += `    <title>${esc(track.title)}</title>\n`;
-		if (track.duration) xml += `    <duration>${esc(track.duration)}</duration>\n`;
-		xml += '  </track>\n';
-	}
-	xml += '</album>\n';
+	xml += tag('plot', input.plot);
+	if (input.channelId) xml += `  <uniqueid type="youtube" default="true">${esc(input.channelId)}</uniqueid>\n`;
+	xml += '</tvshow>\n';
 	return xml;
 }
 
-export interface ArtistNfoInput {
-	name: string;
-	sortName?: string;
-	mbArtistId?: string;
-	genres?: string[];
-	biography?: string;
+export interface EpisodeNfoInput {
+	title: string;
+	showTitle: string;
+	season: string;
+	episode: number;
+	aired?: string; // YYYYMMDD
+	videoId: string;
+	plot?: string;
 }
 
-export function artistNfo(input: ArtistNfoInput): string {
-	let xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<artist>\n';
-	xml += tag('name', input.name);
-	xml += tag('sortname', input.sortName ?? input.name);
-	xml += tag('musicbrainzartistid', input.mbArtistId);
-	for (const genre of input.genres ?? []) xml += tag('genre', genre);
-	xml += tag('biography', input.biography);
-	xml += '</artist>\n';
+/** Written next to each downloaded video, same basename with a `.nfo` extension. */
+export function episodeNfo(input: EpisodeNfoInput): string {
+	let xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<episodedetails>\n';
+	xml += tag('title', input.title);
+	xml += tag('showtitle', input.showTitle);
+	xml += `  <season>${Number(input.season) || 1}</season>\n`;
+	xml += `  <episode>${input.episode}</episode>\n`;
+	xml += tag('aired', isoDate(input.aired));
+	xml += tag('plot', input.plot);
+	xml += `  <uniqueid type="youtube" default="true">${esc(input.videoId)}</uniqueid>\n`;
+	xml += '</episodedetails>\n';
 	return xml;
 }

@@ -12,7 +12,7 @@ const PYTHON = path.join(PROJECT, '.venv/bin/python');
 const TAG_SCRIPT = path.join(PROJECT, 'python/tag.py');
 // Per-file fixture path: test files run in parallel workers, so a shared name
 // would let one worker read the fixture while another is mid-ffmpeg-write.
-const FIXTURE = path.join(tmpdir(), 'myoutarr-fixture-delete.opus');
+const FIXTURE = path.join(tmpdir(), 'youtarr-fixture-delete.opus');
 
 beforeAll(() => {
 	if (!existsSync(FIXTURE)) {
@@ -36,7 +36,7 @@ beforeAll(() => {
 let root: string;
 
 beforeEach(() => {
-	root = mkdtempSync(path.join(tmpdir(), 'myoutarr-delete-'));
+	root = mkdtempSync(path.join(tmpdir(), 'youtarr-delete-'));
 	createSentinel(root);
 	process.env.MUSIC_DIR = root;
 	process.env.CONFIG_DIR = path.join(root, '.config');

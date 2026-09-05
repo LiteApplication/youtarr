@@ -22,25 +22,33 @@ export function sanitizeSegment(input: string): string {
 	return segment;
 }
 
+/** Upload year (YYYY) from a YYYYMMDD upload date, or '00' when unknown. */
+export function seasonFor(meta: Pick<JobMeta, 'uploadDate'>): string {
+	if (meta.uploadDate && /^\d{8}$/.test(meta.uploadDate)) return meta.uploadDate.slice(0, 4);
+	return '00';
+}
+
 /**
  * Render the naming template into a library-relative file path (no extension).
- * Placeholders: {albumartist} {artist} {album} {year} {title} {track:02} {disc}
+ * Placeholders: {channel} {season} {episode:03} {title} {year}
  */
-export function renderTemplate(template: string, meta: JobMeta): string {
+export function renderTemplate(
+	template: string,
+	meta: JobMeta,
+	episode: number,
+	season: string = seasonFor(meta)
+): string {
 	const fields: Record<string, string> = {
-		albumartist: meta.albumArtist || meta.artist || 'Unknown Artist',
-		artist: meta.artist || 'Unknown Artist',
-		album: meta.album || 'Unknown Album',
-		year: meta.year ?? '',
+		channel: meta.channel || 'Unknown channel',
 		title: meta.title || 'Untitled',
-		disc: meta.discNumber ? String(meta.discNumber) : ''
+		season,
+		year: season !== '00' ? season : ''
 	};
 	const rendered = template.replace(
 		/\{(\w+)(?::(\d+))?\}/g,
 		(_match, name: string, pad?: string) => {
-			if (name === 'track') {
-				const track = meta.trackNumber ?? 0;
-				return pad ? String(track).padStart(Number(pad), '0') : String(track);
+			if (name === 'episode') {
+				return pad ? String(episode).padStart(Number(pad), '0') : String(episode);
 			}
 			return fields[name] ?? '';
 		}
@@ -49,13 +57,12 @@ export function renderTemplate(template: string, meta: JobMeta): string {
 		.split('/')
 		.map((segment) => sanitizeSegment(segment))
 		.filter((segment) => segment !== '')
-		.join('/')
-		.replace(/\s*\(\)\s*/g, ''); // drop empty "( )" left by missing years
+		.join('/');
 }
 
 /**
  * Resolve the final absolute path and assert it stays inside the library root.
- * An artist named "../.." must never become a write outside /music.
+ * A channel named "../.." must never become a write outside the media root.
  */
 export function resolveLibraryPath(libraryRoot: string, relative: string, ext: string): string {
 	const absolute = path.resolve(libraryRoot, `${relative}.${ext}`);

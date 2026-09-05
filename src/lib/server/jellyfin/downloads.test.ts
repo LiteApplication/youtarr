@@ -14,7 +14,7 @@ let music: string;
 let db: DB;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-downloads-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-downloads-'));
 	music = path.join(dir, 'music');
 	mkdirSync(music, { recursive: true });
 	writeFileSync(path.join(music, MOUNT_SENTINEL), 'ok');

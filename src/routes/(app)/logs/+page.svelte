@@ -15,14 +15,12 @@
 
 	function batchLinkHref(kind: string, sourceId: string, videoId: string): string {
 		switch (kind) {
-			case 'album':
-				return `/album/${sourceId}`;
-			case 'artist':
-				return `/artist/${sourceId}`;
+			case 'channel':
+				return `/channel/${sourceId}`;
 			case 'playlist':
 				return `/playlist/${sourceId}`;
-			case 'song':
-				return `/song/${videoId}`;
+			case 'video':
+				return `/video/${videoId}`;
 			default:
 				return '#';
 		}
@@ -81,7 +79,7 @@
 </script>
 
 <svelte:head>
-	<title>Logs - myoutarr</title>
+	<title>Logs - youtarr</title>
 </svelte:head>
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -110,16 +108,16 @@
 			<li class="border-b border-line last:border-b-0 px-4 py-3">
 				<div class="flex items-center gap-3">
 					{#if entry.thumbnail}
-						<a href="/song/{entry.videoId}" class="shrink-0">
+						<a href="/video/{entry.videoId}" class="shrink-0">
 							<img src={entry.thumbnail} alt="" class="h-10 w-10 rounded object-cover" />
 						</a>
 					{/if}
 					<div class="min-w-0 flex-1">
 						<p class="truncate text-sm text-ink">
-							<a href="/song/{entry.videoId}" class="hover:underline">{entry.title}</a>
+							<a href="/video/{entry.videoId}" class="hover:underline">{entry.title}</a>
 						</p>
 						<p class="truncate text-xs text-ink-muted">
-							{#if entry.artist}{entry.artist} ·
+							{#if entry.channel}{entry.channel} ·
 							{/if}
 							<a
 								href={batchLinkHref(entry.batchKind, entry.batchSourceId, entry.videoId)}

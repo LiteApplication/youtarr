@@ -19,12 +19,14 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const patch: Partial<Settings> = {};
 
-		const audioFormat = String(form.get('audioFormat') ?? '');
-		if (['opus', 'm4a', 'mp3', 'flac'].includes(audioFormat)) {
-			patch.audioFormat = audioFormat as Settings['audioFormat'];
+		const videoFormat = String(form.get('videoFormat') ?? '');
+		if (['mp4', 'mkv', 'webm'].includes(videoFormat)) {
+			patch.videoFormat = videoFormat as Settings['videoFormat'];
 		}
-		const quality = Number(form.get('audioQuality'));
-		if (Number.isInteger(quality) && quality >= 0 && quality <= 10) patch.audioQuality = quality;
+		const maxResolution = String(form.get('maxResolution') ?? '');
+		if (['2160', '1440', '1080', '720', '480', 'best'].includes(maxResolution)) {
+			patch.maxResolution = maxResolution as Settings['maxResolution'];
+		}
 		const concurrency = Number(form.get('concurrency'));
 		if (Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 8) {
 			patch.concurrency = concurrency;
@@ -36,10 +38,8 @@ export const actions: Actions = {
 		const template = String(form.get('namingTemplate') ?? '').trim();
 		if (template.includes('{title}')) patch.namingTemplate = template;
 		patch.sponsorBlock = form.get('sponsorBlock') === 'on';
-		patch.musicBrainz = form.get('musicBrainz') === 'on';
 		patch.jellyfinRefresh = form.get('jellyfinRefresh') === 'on';
 		patch.subscriptionsEnabled = form.get('subscriptionsEnabled') === 'on';
-		patch.recommendationsEnabled = form.get('recommendationsEnabled') === 'on';
 		const checkHours = Number(form.get('subscriptionCheckHours'));
 		if (Number.isInteger(checkHours) && checkHours >= 1 && checkHours <= 168) {
 			patch.subscriptionCheckHours = checkHours;

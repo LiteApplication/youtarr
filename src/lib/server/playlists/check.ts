@@ -1,9 +1,9 @@
 import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
 import { publish } from '../events.ts';
-import { buildPlaylistTracks } from '../queue/enqueue.ts';
+import { buildVideoJobs } from '../queue/enqueue.ts';
 import { createBatch } from '../queue/store.ts';
-import { getPlaylist } from '../ytmusic/api.ts';
+import { resolvePlaylist } from '../ytdlp/metadata.ts';
 import {
 	duePlaylistSubscriptions,
 	markPlaylistChecked,
@@ -13,7 +13,7 @@ import {
 } from './store.ts';
 
 export interface PlaylistCheckResult {
-	/** Number of batches enqueued (one per playlist that gained new songs). */
+	/** Number of batches enqueued (one per playlist that gained new videos). */
 	enqueued: number;
 	/** Batch ids created, for the caller to poke the worker pool and reconcile drains. */
 	batchIds: string[];
@@ -24,49 +24,49 @@ export interface PlaylistCheckResult {
  * (matching the repo's dependency-injection convention over module mocking).
  */
 export interface PlaylistCheckDeps {
-	getPlaylist: typeof getPlaylist;
+	getPlaylist: typeof resolvePlaylist;
 }
 
-const defaultDeps: PlaylistCheckDeps = { getPlaylist };
+const defaultDeps: PlaylistCheckDeps = { getPlaylist: resolvePlaylist };
 
 /**
- * Check one followed playlist for songs added since it was followed and enqueue
- * the new ones as a playlist batch (already-downloaded tracks are skipped inside
- * `buildPlaylistTracks`, so a re-added song already in the library is not fetched
- * again). The new batch flows through the normal drain/incremental sync and lands
- * in the same Jellyfin playlist. Every new video is marked seen so it isn't
- * reconsidered next time.
+ * Check one followed playlist for videos added since it was followed and
+ * enqueue the new ones as a playlist batch (already-downloaded videos are
+ * skipped inside `buildVideoJobs`, so a re-added video already in the library
+ * is not fetched again). The new batch flows through the normal drain/
+ * incremental sync and lands in the same Jellyfin playlist. Every new video is
+ * marked seen so it isn't reconsidered next time.
  */
 export async function checkPlaylistSubscription(
 	sub: PlaylistSubscription,
 	db: DB = getDb(),
 	deps: PlaylistCheckDeps = defaultDeps
 ): Promise<PlaylistCheckResult> {
-	const playlist = await deps.getPlaylist(sub.browseId);
-	const seen = seenVideoIds(sub.browseId, sub.createdBy, db);
-	const newTracks = playlist.tracks.filter((t) => t.videoId && !seen.has(t.videoId));
+	const playlist = await deps.getPlaylist(sub.playlistId);
+	const seen = seenVideoIds(sub.playlistId, sub.createdBy, db);
+	const newVideos = playlist.videos.filter((v) => v.videoId && !seen.has(v.videoId));
 
 	const batchIds: string[] = [];
-	if (newTracks.length > 0) {
-		const tracks = buildPlaylistTracks(newTracks, db);
+	if (newVideos.length > 0) {
+		const tracks = buildVideoJobs(newVideos, db);
 		const { batch } = createBatch(
 			{
 				kind: 'playlist',
-				sourceId: sub.browseId,
+				sourceId: sub.playlistId,
 				title: playlist.title,
-				artist: playlist.author ?? undefined,
+				channel: playlist.channel?.name,
 				thumbnail: playlist.thumbnails.at(-1)?.url,
 				createdBy: sub.createdBy
 			},
 			tracks,
 			db
 		);
-		markVideosSeen(sub.browseId, sub.createdBy, newTracks.map((t) => t.videoId) as string[], db);
+		markVideosSeen(sub.playlistId, sub.createdBy, newVideos.map((v) => v.videoId), db);
 		batchIds.push(batch.id);
-		console.log(`playlist sync: enqueued ${newTracks.length} new song(s) from "${playlist.title}"`);
+		console.log(`playlist sync: enqueued ${newVideos.length} new video(s) from "${playlist.title}"`);
 	}
 
-	markPlaylistChecked(sub.browseId, sub.createdBy, db);
+	markPlaylistChecked(sub.playlistId, sub.createdBy, db);
 	return { enqueued: batchIds.length, batchIds };
 }
 

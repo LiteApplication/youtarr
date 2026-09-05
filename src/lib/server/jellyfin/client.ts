@@ -9,12 +9,12 @@ export interface JellyfinUser {
 }
 
 /**
- * Whether a Jellyfin user may use myoutarr: administrators always may, plus any
- * user granted collection-management rights (our proxy for "can manage the music
- * library"). myoutarr writes to the library filesystem itself, so this gate is a
+ * Whether a Jellyfin user may use youtarr: administrators always may, plus any
+ * user granted collection-management rights (our proxy for "can manage the video
+ * library"). youtarr writes to the library filesystem itself, so this gate is a
  * policy choice about who to admit, not a permission it enforces per request.
  */
-export function canUseMyoutarr(user: { isAdmin: boolean; canManageCollections: boolean }): boolean {
+export function canUseYoutarr(user: { isAdmin: boolean; canManageCollections: boolean }): boolean {
 	return user.isAdmin || user.canManageCollections;
 }
 
@@ -40,9 +40,9 @@ export class JellyfinError extends Error {
 
 function authHeader(token?: string): string {
 	const parts = [
-		'MediaBrowser Client="myoutarr"',
-		'Device="myoutarr"',
-		'DeviceId="myoutarr-server"',
+		'MediaBrowser Client="youtarr"',
+		'Device="youtarr"',
+		'DeviceId="youtarr-server"',
 		`Version="${APP_VERSION}"`
 	];
 	if (token) parts.push(`Token="${token}"`);
@@ -151,7 +151,7 @@ export class JellyfinClient {
 		}
 	}
 
-	async musicLibraries(token: string): Promise<JellyfinLibrary[]> {
+	async videoLibraries(token: string): Promise<JellyfinLibrary[]> {
 		const folders = await this.request<
 			{ Name?: string; CollectionType?: string; Locations?: string[] }[]
 		>('GET', '/Library/VirtualFolders', { token });
@@ -161,20 +161,20 @@ export class JellyfinClient {
 				collectionType: f.CollectionType ?? null,
 				locations: f.Locations ?? []
 			}))
-			.filter((f) => f.collectionType === 'music' || f.collectionType === null);
+			.filter((f) => f.collectionType === 'tvshows' || f.collectionType === null);
 	}
 
 	async refreshLibrary(token: string): Promise<void> {
 		await this.request<void>('POST', '/Library/Refresh', { token });
 	}
 
-	/** Find an audio item by title, then match on its filesystem path. */
-	async findAudioByPath(token: string, title: string, path: string): Promise<string | null> {
+	/** Find an episode item by title, then match on its filesystem path. */
+	async findVideoByPath(token: string, title: string, path: string): Promise<string | null> {
 		const result = await this.request<{
 			Items?: { Id: string; Path?: string }[];
 		}>(
 			'GET',
-			`/Items?recursive=true&includeItemTypes=Audio&fields=Path&limit=20&searchTerm=${encodeURIComponent(title)}`,
+			`/Items?recursive=true&includeItemTypes=Episode&fields=Path&limit=20&searchTerm=${encodeURIComponent(title)}`,
 			{ token }
 		);
 		return result.Items?.find((item) => item.Path === path)?.Id ?? null;
@@ -198,7 +198,7 @@ export class JellyfinClient {
 	): Promise<string> {
 		const result = await this.request<{ Id?: string }>('POST', '/Playlists', {
 			token,
-			body: { Name: name, UserId: userId, Ids: itemIds, MediaType: 'Audio', IsPublic: false }
+			body: { Name: name, UserId: userId, Ids: itemIds, MediaType: 'Video', IsPublic: false }
 		});
 		if (!result.Id) throw new JellyfinError('playlist creation returned no id');
 		return result.Id;

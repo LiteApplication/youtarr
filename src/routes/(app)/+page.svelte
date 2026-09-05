@@ -4,12 +4,12 @@
 	let { data }: { data: PageData } = $props();
 
 	const suggestions = [
-		'Daft Punk',
-		'Radiohead',
-		'Kendrick Lamar',
-		'Aphex Twin',
-		'Billie Eilish',
-		'Charli XCX'
+		'Kurzgesagt',
+		'Tom Scott',
+		'NASA',
+		'Veritasium',
+		'Linus Tech Tips',
+		'PBS Space Time'
 	];
 
 	const statusStyles: Record<string, string> = {
@@ -20,14 +20,12 @@
 
 	function batchLinkHref(kind: string, sourceId: string, videoId: string): string {
 		switch (kind) {
-			case 'album':
-				return `/album/${sourceId}`;
-			case 'artist':
-				return `/artist/${sourceId}`;
+			case 'channel':
+				return `/channel/${sourceId}`;
 			case 'playlist':
 				return `/playlist/${sourceId}`;
-			case 'song':
-				return `/song/${videoId}`;
+			case 'video':
+				return `/video/${videoId}`;
 			default:
 				return '#';
 		}
@@ -56,7 +54,7 @@
 </script>
 
 <svelte:head>
-	<title>myoutarr</title>
+	<title>youtarr</title>
 </svelte:head>
 
 <div class="space-y-12">
@@ -65,12 +63,12 @@
 		<div
 			class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-accent text-3xl font-black text-accent-ink"
 		>
-			m
+			y
 		</div>
-		<h1 class="mt-6 text-3xl font-bold tracking-tight">Find music for your Jellyfin library</h1>
+		<h1 class="mt-6 text-3xl font-bold tracking-tight">Save video for your Jellyfin library</h1>
 		<p class="mt-2 text-sm text-ink-muted">
-			Search for artists, albums, playlists or tracks below to queue them for download. Files are
-			automatically tagged, structured, and synced.
+			Search for channels, playlists or videos below to queue them for download. Files are
+			automatically organized into a TV-style library and synced.
 		</p>
 
 		<div class="mt-8">
@@ -79,7 +77,7 @@
 					<input
 						type="text"
 						name="q"
-						placeholder="Search songs, artists, albums, playlists..."
+						placeholder="Search videos, or paste a channel/playlist/video URL..."
 						required
 						class="w-full rounded-2xl bg-surface-2 border border-line py-3.5 pl-12 pr-4 text-ink placeholder-ink-muted focus:border-accent focus:bg-surface-3 focus:outline-none transition-all shadow-sm"
 					/>
@@ -117,7 +115,7 @@
 			<p class="mt-2 text-3xl font-bold text-accent">{data.stats.queuedCount}</p>
 		</div>
 		<div class="rounded-xl border border-line bg-surface p-5 shadow-sm">
-			<p class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Downloaded Tracks</p>
+			<p class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Downloaded Videos</p>
 			<p class="mt-2 text-3xl font-bold text-ok">{data.stats.completedCount}</p>
 		</div>
 		<div class="rounded-xl border border-line bg-surface p-5 shadow-sm">
@@ -147,7 +145,7 @@
 						<li class="p-3.5 hover:bg-surface-2 transition duration-150">
 							<div class="flex items-center gap-3">
 								{#if entry.thumbnail}
-									<a href="/song/{entry.videoId}" class="shrink-0">
+									<a href="/video/{entry.videoId}" class="shrink-0">
 										<img
 											src={entry.thumbnail}
 											alt=""
@@ -157,10 +155,10 @@
 								{/if}
 								<div class="min-w-0 flex-1">
 									<p class="truncate text-sm font-medium text-ink">
-										<a href="/song/{entry.videoId}" class="hover:underline">{entry.title}</a>
+										<a href="/video/{entry.videoId}" class="hover:underline">{entry.title}</a>
 									</p>
 									<p class="truncate text-xs text-ink-muted mt-0.5">
-										{#if entry.artist}{entry.artist} ·
+										{#if entry.channel}{entry.channel} ·
 										{/if}
 										<a
 											href={batchLinkHref(entry.batchKind, entry.batchSourceId, entry.videoId)}
@@ -188,15 +186,15 @@
 				<a href="/subscriptions" class="text-xs text-accent hover:underline">Manage syncs</a>
 			</div>
 
-			{#if data.artistSubs.length === 0 && data.playlistSubs.length === 0}
+			{#if data.channelSubs.length === 0 && data.playlistSubs.length === 0}
 				<p class="py-8 text-center text-sm text-ink-muted">
-					Not syncing any artists or playlists yet.
+					Not syncing any channels or playlists yet.
 				</p>
 			{:else}
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-					{#each data.artistSubs as sub (sub.browseId)}
+					{#each data.channelSubs as sub (sub.channelRef)}
 						<a
-							href="/artist/{sub.browseId}"
+							href="/channel/{sub.channelRef}"
 							class="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 hover:bg-surface-2 transition"
 						>
 							{#if sub.thumbnail}
@@ -209,15 +207,15 @@
 							<div class="min-w-0 flex-1">
 								<p class="truncate text-sm font-medium text-ink">{sub.name}</p>
 								<p class="text-[10px] text-ink-faint uppercase tracking-wider font-semibold mt-0.5">
-									Artist
+									Channel
 								</p>
 							</div>
 						</a>
 					{/each}
 
-					{#each data.playlistSubs as sub (sub.browseId)}
+					{#each data.playlistSubs as sub (sub.playlistId)}
 						<a
-							href="/playlist/{sub.browseId}"
+							href="/playlist/{sub.playlistId}"
 							class="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 hover:bg-surface-2 transition"
 						>
 							{#if sub.thumbnail}

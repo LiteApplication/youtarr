@@ -45,11 +45,6 @@
 			icon: 'M4 6h11M4 12h11M4 18h7M16 16l3 3 3-3M19 19V9'
 		},
 		{
-			href: '/recommendations',
-			label: 'Recommendations',
-			icon: 'M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15l-1.9-4.1L5.5 9l4.6-1.4L12 3zM18 14l1 2.4L21.5 17l-2.5 1L18 20.5 17 18l-2.5-1 2.5-.6L18 14z'
-		},
-		{
 			href: '/cookies',
 			label: 'Cookies',
 			icon: 'M12 2a10 10 0 1010 10 4 4 0 01-5-5 4 4 0 01-5-5zM8.5 10.5h.01M15 14h.01M10.5 15.5h.01'
@@ -93,14 +88,9 @@
 
 {#snippet versionLink()}
 	{#if data.appVersion}
-		<a
-			href="https://github.com/LiteApplication/myoutarr/releases/tag/{data.appVersion}"
-			target="_blank"
-			rel="noreferrer"
-			class="mt-2 block truncate px-2 text-xs text-ink-faint hover:text-ink-muted hover:underline"
-		>
+		<p class="mt-2 block truncate px-2 text-xs text-ink-faint">
 			{data.appVersion}
-		</a>
+		</p>
 	{/if}
 {/snippet}
 
@@ -119,9 +109,9 @@
 			<span
 				class="font-display grid h-8 w-8 place-items-center rounded-lg bg-accent text-xl font-black italic text-accent-ink"
 			>
-				m
+				y
 			</span>
-			<span class="font-display text-xl font-semibold tracking-tight">myoutarr</span>
+			<span class="font-display text-xl font-semibold tracking-tight">youtarr</span>
 		</a>
 		<div class="mt-2 flex flex-col gap-1 px-3">
 			{@render navLinks()}
@@ -190,7 +180,7 @@
 						name="q"
 						type="search"
 						required
-						placeholder="Search songs, albums, artists, playlists"
+						placeholder="Search videos, channels, playlists"
 						bind:value={query}
 						class="w-full rounded-full border border-line bg-surface-2 py-2 pl-10 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-accent"
 					/>
@@ -224,9 +214,9 @@
 					<span
 						class="font-display grid h-8 w-8 place-items-center rounded-lg bg-accent text-xl font-black italic text-accent-ink"
 					>
-						m
+						y
 					</span>
-					<span class="font-display text-xl font-semibold tracking-tight">myoutarr</span>
+					<span class="font-display text-xl font-semibold tracking-tight">youtarr</span>
 				</a>
 				<button
 					type="button"

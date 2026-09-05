@@ -30,7 +30,7 @@ describe('JellyfinClient', () => {
 		await new JellyfinClient('http://jf:8096', fetchImpl).ping();
 		const init = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
 		const auth = (init.headers as Record<string, string>).Authorization;
-		expect(auth).toContain('MediaBrowser Client="myoutarr"');
+		expect(auth).toContain('MediaBrowser Client="youtarr"');
 		expect(auth).not.toContain('Token=');
 	});
 
@@ -69,14 +69,14 @@ describe('JellyfinClient', () => {
 		expect(result).toBeNull();
 	});
 
-	it('filters virtual folders down to music collections', async () => {
+	it('filters virtual folders down to tv show collections', async () => {
 		const fetchImpl = mockFetch(200, [
 			{ Name: 'Movies', CollectionType: 'movies', Locations: ['/movies'] },
-			{ Name: 'Music', CollectionType: 'music', Locations: ['/music'] },
+			{ Name: 'Shows', CollectionType: 'tvshows', Locations: ['/shows'] },
 			{ Name: 'Mixed', Locations: ['/mixed'] }
 		]);
-		const libraries = await new JellyfinClient('http://jf:8096', fetchImpl).musicLibraries('t');
-		expect(libraries.map((l) => l.name)).toEqual(['Music', 'Mixed']);
+		const libraries = await new JellyfinClient('http://jf:8096', fetchImpl).videoLibraries('t');
+		expect(libraries.map((l) => l.name)).toEqual(['Shows', 'Mixed']);
 	});
 
 	it('playlistItemIds returns the ids of items currently in the playlist', async () => {

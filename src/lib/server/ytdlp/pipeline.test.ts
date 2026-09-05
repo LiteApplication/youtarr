@@ -14,7 +14,7 @@ const PROJECT = path.resolve(HERE, '../../../..');
 const PYTHON = path.join(PROJECT, '.venv/bin/python');
 // Per-file fixture path: test files run in parallel workers, so a shared name
 // would let one worker read the fixture while another is mid-ffmpeg-write.
-const FIXTURE = path.join(tmpdir(), 'myoutarr-fixture-pipeline.opus');
+const FIXTURE = path.join(tmpdir(), 'youtarr-fixture-pipeline.opus');
 
 // Wrapper so the pipeline can spawn "yt-dlp" as a single binary path.
 let fakeBin: string;
@@ -35,7 +35,7 @@ beforeAll(() => {
 			FIXTURE
 		]);
 	}
-	fakeBin = path.join(tmpdir(), 'myoutarr-fake-ytdlp.sh');
+	fakeBin = path.join(tmpdir(), 'youtarr-fake-ytdlp.sh');
 	execFileSync('bash', [
 		'-c',
 		`printf '#!/bin/bash\\nexec "${PYTHON}" "${HERE}/fake_ytdlp.py" "$@"\\n' > ${fakeBin} && chmod +x ${fakeBin}`
@@ -49,11 +49,11 @@ let scratch: string;
 let staging: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-pipe-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-pipe-'));
 	db = openDatabase(path.join(dir, 'test.db'));
 	library = path.join(dir, 'music');
 	scratch = path.join(dir, 'scratch');
-	staging = path.join(library, '.myoutarr-staging');
+	staging = path.join(library, '.youtarr-staging');
 	mkdirSync(library, { recursive: true });
 	mkdirSync(scratch, { recursive: true });
 	createSentinel(library);

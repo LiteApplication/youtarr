@@ -24,8 +24,8 @@ ARG APP_VERSION=
 # dependency doesn't invalidate the others. pip cache mounts survive across local
 # rebuilds; gha layer caching reuses each unchanged layer across CI runs.
 
-# ffmpeg for extraction/embedding; dumb-init for signal forwarding and zombie
-# reaping (we spawn yt-dlp/ffmpeg/python children); su-exec for PUID/PGID drop.
+# ffmpeg for remuxing; dumb-init for signal forwarding and zombie reaping (we
+# spawn yt-dlp/ffmpeg children); su-exec for PUID/PGID drop.
 RUN apk add --no-cache ffmpeg python3 py3-pip dumb-init su-exec shadow
 
 RUN python3 -m venv /opt/venv
@@ -35,11 +35,11 @@ RUN python3 -m venv /opt/venv
 # (see YTDLP_JS_RUNTIMES below). Without both, yt-dlp discards every real format
 # and fails with "Requested format is not available".
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-	/opt/venv/bin/pip install 'yt-dlp[default]' ytmusicapi mutagen
+	/opt/venv/bin/pip install 'yt-dlp[default]'
 
 # bgutil PO Token provider plugin: yt-dlp auto-uses it to fetch GVS PO Tokens
-# from the bgutil-provider server (see docker-compose.yml), so the web/web_music
-# clients can serve audio. Keep this version in lockstep with the
+# from the bgutil-provider server (see docker-compose.yml), so the web client
+# can serve video. Keep this version in lockstep with the
 # brainicism/bgutil-ytdlp-pot-provider image tag in the compose files.
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 	/opt/venv/bin/pip install 'bgutil-ytdlp-pot-provider==1.3.1'
@@ -48,28 +48,23 @@ WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
-COPY python ./python
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 ENV NODE_ENV=production \
 	APP_VERSION=${APP_VERSION} \
 	PORT=8687 \
 	CONFIG_DIR=/config \
-	MUSIC_DIR=/music \
-	YTM_PYTHON=/opt/venv/bin/python \
-	YTM_WORKER=/app/python/ytm_worker.py \
-	TAG_SCRIPT=/app/python/tag.py \
-	READ_TAGS_SCRIPT=/app/python/read_tags.py \
+	MEDIA_DIR=/media \
 	YTDLP_BIN=/opt/venv/bin/yt-dlp \
 	# Use the image's Node for yt-dlp's JS challenge solver (yt-dlp defaults to
 	# Deno, which the Alpine image doesn't ship). Node 26 here satisfies EJS's
 	# Node >= 22 requirement.
 	YTDLP_JS_RUNTIMES=node \
-	# uploads: SvelteKit's default body limit is 512KB - far too small for audio
+	# uploads: SvelteKit's default body limit is 512KB - far too small for video
 	BODY_SIZE_LIMIT=524288000
 
 EXPOSE 8687
-VOLUME ["/config", "/music"]
+VOLUME ["/config", "/media"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 	CMD wget -q -O /dev/null http://127.0.0.1:8687/api/health || exit 1

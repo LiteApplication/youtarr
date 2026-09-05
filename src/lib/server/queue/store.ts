@@ -4,32 +4,16 @@ import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
 
 export type JobStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
-export type BatchKind = 'song' | 'album' | 'artist' | 'playlist';
+export type BatchKind = 'video' | 'channel' | 'playlist';
 
 export interface JobMeta {
 	title: string;
-	artist: string;
-	album: string;
-	albumArtist?: string;
-	/**
-	 * The individual artists behind `artist` / `albumArtist`, once they are known
-	 * to really be separate people - either because YT Music handed us a list, or
-	 * because MusicBrainz confirmed the split (see `musicbrainz/client.ts`).
-	 * Absent means "not verified": tagging then writes the combined credit as one
-	 * value rather than guessing at "Earth, Wind & Fire".
-	 */
-	artists?: string[];
-	albumArtists?: string[];
-	year?: string;
-	genre?: string;
-	trackNumber?: number;
-	discNumber?: number;
-	totalTracks?: number;
+	channel: string;
+	channelId?: string;
 	thumbnail?: string;
-	albumBrowseId?: string;
-	mbArtistId?: string;
-	mbAlbumId?: string;
-	mbReleaseGroupId?: string;
+	/** YouTube upload date, YYYYMMDD. Drives season/episode numbering and the NFO `<aired>` field. */
+	uploadDate?: string;
+	duration?: string;
 }
 
 export interface Job {
@@ -51,7 +35,7 @@ export interface Batch {
 	kind: BatchKind;
 	sourceId: string;
 	title: string;
-	artist: string | null;
+	channel: string | null;
 	thumbnail: string | null;
 	createdAt: number;
 	createdBy: string;
@@ -62,7 +46,7 @@ export interface NewTrack {
 	videoId: string;
 	meta: JobMeta;
 	/**
-	 * When set, the track is already in the library at this path: its job is
+	 * When set, the video is already in the library at this path: its job is
 	 * inserted pre-completed so it isn't re-downloaded, yet still participates in
 	 * playlist sync. See `findCompletedDownload`.
 	 */
@@ -99,44 +83,42 @@ function rowToJob(row: JobRow): Job {
 	};
 }
 
-/** Create a batch and expand it into one job per track, atomically. */
+/** Create a batch and expand it into one job per video, atomically. */
 export function createBatch(
 	input: {
 		kind: BatchKind;
 		sourceId: string;
 		title: string;
-		artist?: string;
+		channel?: string;
 		thumbnail?: string;
 		createdBy: string;
-		/** Materialise into the Jellyfin playlist by prepending, not appending. */
-		prepend?: boolean;
 		syncJellyfin?: boolean;
 	},
 	tracks: NewTrack[],
 	db: DB = getDb()
 ): { batch: Batch; jobs: Job[] } {
-	if (tracks.length === 0) throw new Error('batch has no downloadable tracks');
+	if (tracks.length === 0) throw new Error('batch has no downloadable videos');
 	const batch: Batch = {
 		id: randomUUID(),
 		kind: input.kind,
 		sourceId: input.sourceId,
 		title: input.title,
-		artist: input.artist ?? null,
+		channel: input.channel ?? null,
 		thumbnail: input.thumbnail ?? null,
 		createdAt: Date.now(),
 		createdBy: input.createdBy,
 		syncJellyfin: input.syncJellyfin !== false
 	};
 	const insertBatch = db.prepare(
-		`INSERT INTO batches (id, kind, source_id, title, artist, thumbnail, created_at, created_by, prepend, sync_jellyfin)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`INSERT INTO batches (id, kind, source_id, title, channel, thumbnail, created_at, created_by, sync_jellyfin)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	);
 	const nextPosition =
 		((db.prepare('SELECT MAX(position) AS p FROM jobs').get() as { p: number | null }).p ?? -1) + 1;
 	const insertJob = db.prepare(
 		`INSERT INTO jobs (id, batch_id, video_id, position, meta) VALUES (?, ?, ?, ?, ?)`
 	);
-	// Tracks already in the library are inserted pre-completed: the worker never
+	// Videos already in the library are inserted pre-completed: the worker never
 	// claims a non-'queued' job, so they are skipped rather than re-downloaded.
 	const insertDone = db.prepare(
 		`INSERT INTO jobs (id, batch_id, video_id, position, meta, status, progress, started_at, finished_at, output_path)
@@ -149,11 +131,10 @@ export function createBatch(
 			batch.kind,
 			batch.sourceId,
 			batch.title,
-			batch.artist,
+			batch.channel,
 			batch.thumbnail,
 			batch.createdAt,
 			batch.createdBy,
-			input.prepend ? 1 : 0,
 			batch.syncJellyfin ? 1 : 0
 		);
 		tracks.forEach((track, index) => {
@@ -363,7 +344,7 @@ export function listQueue(userId: string, db: DB = getDb(), limit = 50): BatchWi
 		kind: BatchKind;
 		source_id: string;
 		title: string;
-		artist: string | null;
+		channel: string | null;
 		thumbnail: string | null;
 		created_at: number;
 		created_by: string;
@@ -376,7 +357,7 @@ export function listQueue(userId: string, db: DB = getDb(), limit = 50): BatchWi
 		kind: b.kind,
 		sourceId: b.source_id,
 		title: b.title,
-		artist: b.artist,
+		channel: b.channel,
 		thumbnail: b.thumbnail,
 		createdAt: b.created_at,
 		createdBy: b.created_by,
@@ -395,7 +376,7 @@ export interface LogEntry {
 	finishedAt: number | null;
 	outputPath: string | null;
 	title: string;
-	artist: string;
+	channel: string;
 	videoId: string;
 	batchId: string;
 	batchTitle: string;
@@ -451,7 +432,7 @@ export function listRecentJobs(userId: string, db: DB = getDb(), limit = 200): L
 			finishedAt: row.finished_at,
 			outputPath: row.output_path,
 			title: meta.title ?? '(unknown)',
-			artist: meta.artist ?? '',
+			channel: meta.channel ?? '',
 			videoId: row.video_id,
 			batchId: row.batch_id,
 			batchTitle: row.batch_title,

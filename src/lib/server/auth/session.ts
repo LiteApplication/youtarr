@@ -3,7 +3,7 @@ import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-export const SESSION_COOKIE = 'myoutarr_session';
+export const SESSION_COOKIE = 'youtarr_session';
 
 export interface Session {
 	id: string;

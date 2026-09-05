@@ -1,23 +1,23 @@
 import { getPlaylistSubscription } from '$lib/server/playlists/store';
 import { findCompletedDownload } from '$lib/server/queue/store';
-import { getPlaylist } from '$lib/server/ytmusic/api';
+import { resolvePlaylist } from '$lib/server/ytdlp/metadata';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	try {
 		const sub = getPlaylistSubscription(params.id, locals.session!.userId);
-		const playlist = await getPlaylist(params.id);
-		const tracksWithStatus = playlist.tracks.map((track) => ({
-			...track,
-			isDownloaded: track.videoId ? findCompletedDownload(track.videoId) !== null : false
+		const playlist = await resolvePlaylist(params.id);
+		const videosWithStatus = playlist.videos.map((video) => ({
+			...video,
+			isDownloaded: video.videoId ? findCompletedDownload(video.videoId) !== null : false
 		}));
 		const isDownloaded =
-			tracksWithStatus.length > 0 && tracksWithStatus.every((t) => !t.videoId || t.isDownloaded);
+			videosWithStatus.length > 0 && videosWithStatus.every((v) => !v.videoId || v.isDownloaded);
 		return {
 			playlist: {
 				...playlist,
-				tracks: tracksWithStatus
+				videos: videosWithStatus
 			},
 			synced: sub !== null && sub.enabled,
 			isDownloaded

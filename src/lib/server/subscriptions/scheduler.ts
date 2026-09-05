@@ -4,12 +4,12 @@ import { getSettings } from '../settings.ts';
 import { checkDueSubscriptions } from './check.ts';
 
 /**
- * How often the scheduler wakes to look for artists due a check. Kept short
- * relative to the per-artist interval so a restart re-checks promptly and the
+ * How often the scheduler wakes to look for channels due a check. Kept short
+ * relative to the per-channel interval so a restart re-checks promptly and the
  * effective cadence still tracks `subscriptionCheckHours`.
  */
 const TICK_MS = 60 * 60 * 1000; // hourly
-/** Let the app settle (worker pool, ytmusic worker) before the first check. */
+/** Let the app settle (worker pool) before the first check. */
 const BOOT_DELAY_MS = 30_000;
 
 let bootTimer: NodeJS.Timeout | null = null;
@@ -22,7 +22,7 @@ let running = false;
  * any batch already satisfied from the library. Idempotent: calling twice is a
  * no-op. Ticks are serialised - a slow check never overlaps the next wake.
  *
- * Artist auto-download honours the global `subscriptionsEnabled` switch; playlist
+ * Channel auto-download honours the global `subscriptionsEnabled` switch; playlist
  * sync is gated per-playlist (its own `enabled` flag) and always considered here.
  * Both share the `subscriptionCheckHours` cadence.
  */

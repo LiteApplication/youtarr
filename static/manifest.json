@@ -1,11 +1,11 @@
 {
-	"name": "myoutarr",
-	"short_name": "myoutarr",
-	"description": "Find and download music for your Jellyfin library",
+	"name": "youtarr",
+	"short_name": "youtarr",
+	"description": "Save YouTube channels, playlists, and videos into your Jellyfin library",
 	"start_url": "/",
 	"display": "standalone",
-	"background_color": "#0b0b12",
-	"theme_color": "#0b0b12",
+	"background_color": "#0a1012",
+	"theme_color": "#0a1012",
 	"orientation": "portrait-primary",
 	"icons": [
 		{

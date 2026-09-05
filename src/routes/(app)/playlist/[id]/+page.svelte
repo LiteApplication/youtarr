@@ -16,7 +16,7 @@
 			await fetch('/api/playlists', {
 				method: data.synced ? 'DELETE' : 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ browseId: data.playlist.browseId })
+				body: JSON.stringify({ playlistId: data.playlist.playlistId })
 			});
 			await invalidateAll();
 		} finally {
@@ -32,7 +32,7 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({
 					kind: 'playlist',
-					browseId: data.playlist.browseId,
+					playlistId: data.playlist.playlistId,
 					syncJellyfin
 				})
 			});
@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.playlist.title} - myoutarr</title>
+	<title>{data.playlist.title} - youtarr</title>
 </svelte:head>
 
 <header class="mb-8 flex flex-col items-start gap-6 sm:flex-row sm:items-end">
@@ -60,7 +60,7 @@
 		<p class="text-xs uppercase tracking-wide text-ink-faint">Playlist</p>
 		<h1 class="mt-1 text-4xl font-bold tracking-tight">{data.playlist.title}</h1>
 		<p class="mt-2 text-sm text-ink-muted">
-			{data.playlist.author ?? ''} · {data.playlist.trackCount} tracks
+			{data.playlist.channel?.name ?? ''} · {data.playlist.videoCount} videos
 		</p>
 		<div class="mt-4 flex flex-col gap-3">
 			<div class="flex items-center gap-3">
@@ -89,9 +89,9 @@
 							? 'border-accent text-accent hover:bg-surface-2'
 							: 'border-line text-ink-muted hover:bg-surface-2 hover:text-ink'
 					]}
-					title="Automatically download songs added to this playlist and keep the Jellyfin playlist in sync"
+					title="Automatically download videos added to this playlist and keep the Jellyfin playlist in sync"
 				>
-					{syncBusy ? '…' : data.synced ? 'Syncing ✓' : 'Sync new songs'}
+					{syncBusy ? '…' : data.synced ? 'Syncing ✓' : 'Sync new videos'}
 				</button>
 				{#if queueState === 'error'}
 					<span class="text-sm text-danger" role="alert">{queueError}</span>
@@ -106,56 +106,45 @@
 </header>
 
 <ul class="divide-y divide-line overflow-hidden rounded-xl bg-surface">
-	{#each data.playlist.tracks as track, index (track.videoId + index)}
+	{#each data.playlist.videos as video, index (video.videoId + index)}
 		<li class="flex items-center gap-4 px-4 py-2.5 transition hover:bg-surface-2">
 			<span class="w-6 text-right text-sm tabular-nums text-ink-faint">{index + 1}</span>
-			{#if track.videoId}
-				<a href="/song/{track.videoId}" class="shrink-0">
+			{#if video.videoId}
+				<a href="/video/{video.videoId}" class="shrink-0">
 					<img
-						src={track.thumbnails.at(-1)?.url}
+						src={video.thumbnails.at(-1)?.url}
 						alt=""
 						loading="lazy"
-						class="h-10 w-10 rounded bg-surface-3 object-cover"
+						class="h-10 w-16 rounded bg-surface-3 object-cover"
 					/>
 				</a>
 			{:else}
 				<img
-					src={track.thumbnails.at(-1)?.url}
+					src={video.thumbnails.at(-1)?.url}
 					alt=""
 					loading="lazy"
-					class="h-10 w-10 rounded bg-surface-3 object-cover"
+					class="h-10 w-16 rounded bg-surface-3 object-cover"
 				/>
 			{/if}
 			<div class="min-w-0 flex-1">
 				<p class="truncate text-sm text-ink">
-					{#if track.videoId}
-						<a href="/song/{track.videoId}" class="hover:underline">{track.title}</a>
+					{#if video.videoId}
+						<a href="/video/{video.videoId}" class="hover:underline">{video.title}</a>
 					{:else}
-						{track.title}
+						{video.title}
 					{/if}
 				</p>
 				<p class="truncate text-xs text-ink-muted">
-					{#each track.artists as artist, i (artist.id ?? artist.name)}
-						{#if i > 0},&nbsp;{/if}
-						{#if artist.id}
-							<a href="/artist/{artist.id}" class="hover:underline hover:text-ink">{artist.name}</a>
-						{:else}
-							{artist.name}
-						{/if}
-					{/each}
-					{#if track.album}
-						&nbsp;·&nbsp;
-						{#if track.album.id}
-							<a href="/album/{track.album.id}" class="hover:underline hover:text-ink"
-								>{track.album.name}</a
-							>
-						{:else}
-							{track.album.name}
-						{/if}
+					{#if video.channel.id}
+						<a href="/channel/channel/{video.channel.id}" class="hover:underline hover:text-ink"
+							>{video.channel.name}</a
+						>
+					{:else}
+						{video.channel.name}
 					{/if}
 				</p>
 			</div>
-			{#if track.isDownloaded}
+			{#if video.isDownloaded}
 				<span
 					class="flex items-center gap-1 text-xs text-ok bg-ok/10 rounded-full px-2 py-0.5"
 					title="Downloaded"
@@ -170,7 +159,7 @@
 					Downloaded
 				</span>
 			{/if}
-			<span class="text-xs tabular-nums text-ink-faint">{track.duration ?? ''}</span>
+			<span class="text-xs tabular-nums text-ink-faint">{video.duration ?? ''}</span>
 		</li>
 	{/each}
 </ul>

@@ -12,7 +12,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings - myoutarr</title>
+	<title>Settings - youtarr</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
@@ -30,37 +30,36 @@
 		class="mt-6 space-y-8"
 	>
 		<section class="rounded-2xl bg-surface p-6">
-			<h2 class="mb-4 text-lg font-semibold">Audio</h2>
+			<h2 class="mb-4 text-lg font-semibold">Video</h2>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<label class="block">
-					<span class="mb-1 block text-sm text-ink-muted">Format</span>
+					<span class="mb-1 block text-sm text-ink-muted">Container</span>
 					<select
-						name="audioFormat"
-						value={settings.audioFormat}
+						name="videoFormat"
+						value={settings.videoFormat}
 						class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink focus:border-accent"
 					>
-						<option value="opus">Opus (recommended)</option>
-						<option value="m4a">M4A / AAC</option>
-						<option value="mp3">MP3</option>
-						<option value="flac">FLAC</option>
+						<option value="mp4">MP4 (recommended)</option>
+						<option value="mkv">MKV</option>
+						<option value="webm">WebM</option>
 					</select>
 				</label>
 				<label class="block">
-					<span class="mb-1 block text-sm text-ink-muted">Quality (0 best – 10 worst)</span>
-					<input
-						name="audioQuality"
-						type="number"
-						min="0"
-						max="10"
-						value={settings.audioQuality}
+					<span class="mb-1 block text-sm text-ink-muted">Max resolution</span>
+					<select
+						name="maxResolution"
+						value={settings.maxResolution}
 						class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink focus:border-accent"
-					/>
+					>
+						<option value="2160">4K (2160p)</option>
+						<option value="1440">1440p</option>
+						<option value="1080">1080p</option>
+						<option value="720">720p</option>
+						<option value="480">480p</option>
+						<option value="best">Best available</option>
+					</select>
 				</label>
 			</div>
-			<p class="mt-3 rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">
-				Honesty note: YouTube serves lossy audio (Opus/AAC). Choosing FLAC re-encodes that lossy
-				source into a much larger file with zero quality gain - it will not make a lossless library.
-			</p>
 		</section>
 
 		<section class="rounded-2xl bg-surface p-6">
@@ -78,7 +77,7 @@
 					/>
 				</label>
 				<label class="block">
-					<span class="mb-1 block text-sm text-ink-muted">Retries per track</span>
+					<span class="mb-1 block text-sm text-ink-muted">Retries per video</span>
 					<input
 						name="maxRetries"
 						type="number"
@@ -123,9 +122,7 @@
 					checked={settings.sponsorBlock}
 					class="accent-accent"
 				/>
-				<span class="text-sm text-ink">
-					SponsorBlock: strip non-music intros/outros from downloads
-				</span>
+				<span class="text-sm text-ink"> SponsorBlock: strip sponsor/self-promo segments from downloads </span>
 			</label>
 		</section>
 
@@ -140,21 +137,11 @@
 					class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 font-mono text-sm text-ink focus:border-accent"
 				/>
 				<span class="mt-1 block text-xs text-ink-faint">
-					Placeholders: {'{albumartist} {artist} {album} {year} {title} {track:02} {disc}'}
+					Placeholders: {'{channel} {season} {episode:03} {title} {year}'}. Each channel becomes a
+					Jellyfin TV show; each video becomes an episode.
 				</span>
 			</label>
 			<label class="mt-4 flex items-center gap-3">
-				<input
-					type="checkbox"
-					name="musicBrainz"
-					checked={settings.musicBrainz}
-					class="accent-accent"
-				/>
-				<span class="text-sm text-ink">
-					MusicBrainz: enrich tags with canonical genre, year, and MBIDs
-				</span>
-			</label>
-			<label class="mt-3 flex items-center gap-3">
 				<input
 					type="checkbox"
 					name="jellyfinRefresh"
@@ -174,21 +161,7 @@
 					checked={settings.subscriptionsEnabled}
 					class="accent-accent"
 				/>
-				<span class="text-sm text-ink"> Auto-download new releases from artists you follow </span>
-			</label>
-			<label class="mt-4 flex items-center gap-3">
-				<input
-					type="checkbox"
-					name="recommendationsEnabled"
-					checked={settings.recommendationsEnabled}
-					class="accent-accent"
-				/>
-				<span class="text-sm text-ink">
-					Grow <a href="/recommendations" class="text-ink hover:underline"
-						>recommendation playlists</a
-					>
-					daily with new songs matching their vibe
-				</span>
+				<span class="text-sm text-ink"> Auto-download new uploads from channels you follow </span>
 			</label>
 			<label class="mt-4 block max-w-xs">
 				<span class="mb-1 block text-sm text-ink-muted">Check interval (hours, 1–168)</span>
@@ -201,8 +174,8 @@
 					class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink focus:border-accent"
 				/>
 				<span class="mt-1 block text-xs text-ink-faint">
-					Shared cadence: how often followed artists, synced playlists, and recommendation playlists
-					are checked. Manage the list on the
+					Shared cadence: how often followed channels and synced playlists are checked. Manage the
+					list on the
 					<a href="/subscriptions" class="text-ink hover:underline">Subscriptions</a> page.
 				</span>
 			</label>
@@ -221,7 +194,7 @@
 					class="accent-accent"
 				/>
 				<span class="text-sm text-ink">
-					Keep a Jellyfin playlist with every track you add, oldest first
+					Keep a Jellyfin playlist with every video you add, oldest first
 				</span>
 			</label>
 			<label class="mt-4 block max-w-sm">
@@ -234,7 +207,7 @@
 					class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink placeholder:text-ink-faint focus:border-accent"
 				/>
 				<span class="mt-1 block text-xs text-ink-faint">
-					Turning this on backfills everything you added before now. Tracks you later delete from
+					Turning this on backfills everything you added before now. Videos you later delete from
 					Jellyfin drop out of the playlist and go back to <em>cancelled</em> in your
 					<a href="/logs" class="text-ink hover:underline">history</a>, ready to re-download.
 				</span>

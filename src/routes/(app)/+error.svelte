@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Error - myoutarr</title>
+	<title>Error - youtarr</title>
 </svelte:head>
 
 <div class="mt-16 flex flex-col items-center gap-4 text-center">

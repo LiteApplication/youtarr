@@ -43,7 +43,7 @@ export function migrate(db: DB): void {
 
 export function getDb(): DB {
 	if (!instance) {
-		instance = openDatabase(path.join(configDir(), 'myoutarr.db'));
+		instance = openDatabase(path.join(configDir(), 'youtarr.db'));
 	}
 	return instance;
 }

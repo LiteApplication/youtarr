@@ -13,9 +13,9 @@ const SCAN_POLL_ATTEMPTS = 18; // up to 3 minutes for the scan to surface new it
 
 export interface DownloadsSyncResult {
 	playlistId: string;
-	/** Tracks placed in the playlist by this run. */
+	/** Videos placed in the playlist by this run. */
 	added: number;
-	/** Tracks known to be in the playlist afterwards. */
+	/** Videos known to be in the playlist afterwards. */
 	total: number;
 	/** Completed jobs whose file has since disappeared, reverted to 'cancelled'. */
 	cancelled: number;
@@ -37,12 +37,12 @@ export function downloadsPlaylistName(userId: string, db: DB = getDb()): string 
 	const row = db
 		.prepare('SELECT user_name FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1')
 		.get(userId) as { user_name: string } | undefined;
-	return row?.user_name ? `${row.user_name}'s downloads` : 'myoutarr downloads';
+	return row?.user_name ? `${row.user_name}'s downloads` : 'youtarr downloads';
 }
 
 /**
  * Revert completed jobs whose published file no longer exists to 'cancelled'.
- * Deleting a track in Jellyfin removes the file from the library, so a vanished
+ * Deleting a video in Jellyfin removes the file from the library, so a vanished
  * file is how a Jellyfin-side deletion reaches us. The job goes back to a
  * non-terminal-success state, which both keeps the queue honest and lets the
  * user retry it; the stale playlist membership row is dropped with it, so a
@@ -75,11 +75,11 @@ function cancelVanished(userId: string, jobs: { id: string; path: string }[], db
  * was downloaded. Idempotent and additive, and safe to run against a library
  * that has been edited from the Jellyfin side:
  *
- * - tracks whose file has been deleted are dropped and their job reverted to
+ * - videos whose file has been deleted are dropped and their job reverted to
  *   'cancelled' (see `cancelVanished`);
- * - a playlist deleted out from under us is recreated from the tracks we already
+ * - a playlist deleted out from under us is recreated from the videos we already
  *   resolved, with no re-search;
- * - tracks Jellyfin has not indexed yet are simply left for the next run.
+ * - videos Jellyfin has not indexed yet are simply left for the next run.
  *
  * Only paths not already recorded as playlist members are looked up in Jellyfin,
  * so a steady-state run costs no searches at all. `poll` (default true) waits for
@@ -95,7 +95,7 @@ export async function syncDownloadsPlaylist(
 	if (!getUserSettings(userId, db).downloadsPlaylist) return null;
 
 	// A dropped library mount makes every file look deleted; refuse to interpret
-	// that as "the user deleted their music".
+	// that as "the user deleted their videos".
 	try {
 		assertMounted();
 	} catch (cause) {
@@ -103,7 +103,7 @@ export async function syncDownloadsPlaylist(
 		return null;
 	}
 
-	// Every track this user has added, oldest first. The same file can back more
+	// Every video this user has added, oldest first. The same file can back more
 	// than one job (a re-request is inserted pre-completed); the first wins.
 	const rows = db
 		.prepare(
@@ -152,12 +152,12 @@ export async function syncDownloadsPlaylist(
 		 ON CONFLICT (user_id, path) DO UPDATE SET item_id = excluded.item_id`
 	);
 
-	const libraryPath = settings.jellyfinLibraryPath || '/music';
+	const libraryPath = settings.jellyfinLibraryPath || '/media';
 	let unresolved = alive.filter((track) => !known.has(track.path));
 	for (let attempt = 0; attempt < attempts && unresolved.length > 0; attempt++) {
 		for (const track of unresolved) {
 			const id = await client
-				.findAudioByPath(auth.token, track.title, toJellyfinPath(track.path, libraryPath))
+				.findVideoByPath(auth.token, track.title, toJellyfinPath(track.path, libraryPath))
 				.catch(() => null);
 			if (!id) continue;
 			known.set(track.path, id);

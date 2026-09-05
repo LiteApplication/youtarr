@@ -8,14 +8,14 @@
 </script>
 
 <svelte:head>
-	<title>Cookies - myoutarr</title>
+	<title>Cookies - youtarr</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
 	<h1 class="text-3xl font-bold">YouTube cookies</h1>
 	<p class="mt-2 text-sm text-ink-muted">
 		These cookies are tied to <span class="font-medium text-ink">your account</span> only. They let
-		yt-dlp download age-restricted or members-only tracks, and reduce &ldquo;Sign in to confirm
+		yt-dlp download age-restricted or members-only videos, and reduce &ldquo;Sign in to confirm
 		you&rsquo;re not a bot&rdquo; failures, by acting as a browser signed in to <em>your</em> YouTube
 		account.
 	</p>
@@ -25,10 +25,10 @@
 		<ol class="list-decimal space-y-2 pl-5 text-sm text-ink-muted">
 			<li>
 				In your browser, sign in to <a
-					href="https://music.youtube.com"
+					href="https://www.youtube.com"
 					target="_blank"
 					rel="noreferrer"
-					class="text-accent hover:underline">music.youtube.com</a
+					class="text-accent hover:underline">youtube.com</a
 				>.
 			</li>
 			<li>

@@ -18,16 +18,16 @@
 </script>
 
 <svelte:head>
-	<title>Setup - myoutarr</title>
+	<title>Setup - youtarr</title>
 </svelte:head>
 
 <div class="flex min-h-dvh items-center justify-center bg-canvas px-4">
 	<div class="w-full max-w-md rounded-2xl bg-surface p-8 shadow-xl">
 		<div class="mb-8 text-center">
-			<h1 class="text-2xl font-bold text-ink">Welcome to myoutarr</h1>
+			<h1 class="text-2xl font-bold text-ink">Welcome to youtarr</h1>
 			<p class="mt-1 text-sm text-ink-muted">
 				{data.phase === 'library'
-					? 'Almost done - choose where music should be saved.'
+					? 'Almost done - choose where videos should be saved.'
 					: 'Connect your Jellyfin server to get started.'}
 			</p>
 		</div>
@@ -121,7 +121,7 @@
 			>
 				{#if data.libraries.length > 0}
 					<fieldset class="space-y-2">
-						<legend class="mb-1 text-sm text-ink-muted">Music libraries found on Jellyfin</legend>
+						<legend class="mb-1 text-sm text-ink-muted">Video libraries found on Jellyfin</legend>
 						{#each data.libraries as library (library.name)}
 							{#each library.locations as location (location)}
 								<label
@@ -137,17 +137,17 @@
 						{/each}
 					</fieldset>
 					<p class="text-xs text-ink-faint">
-						This must be the path as myoutarr's container sees it (its <code>/music</code> mount usually
+						This must be the path as youtarr's container sees it (its <code>/media</code> mount usually
 						maps to one of these).
 					</p>
 				{:else}
 					<label class="block">
-						<span class="mb-1 block text-sm text-ink-muted">Music library path</span>
+						<span class="mb-1 block text-sm text-ink-muted">Media library path</span>
 						<input
 							name="libraryPath"
 							type="text"
 							required
-							placeholder="/music"
+							placeholder="/media"
 							class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink placeholder:text-ink-faint focus:border-accent"
 						/>
 					</label>

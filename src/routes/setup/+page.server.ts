@@ -1,6 +1,6 @@
 import { createSession, SESSION_COOKIE } from '$lib/server/auth/session';
 import { requireAdmin } from '$lib/server/env';
-import { canUseMyoutarr, JellyfinClient, JellyfinError } from '$lib/server/jellyfin/client';
+import { canUseYoutarr, JellyfinClient, JellyfinError } from '$lib/server/jellyfin/client';
 import { createSentinel } from '$lib/server/library/publish';
 import { getSettings, updateSettings } from '$lib/server/settings';
 import { fail, redirect } from '@sveltejs/kit';
@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// Mid-wizard (authenticated, library not yet chosen): offer the pick step.
 	if (settings.jellyfinUrl !== '' && locals.session) {
 		const client = new JellyfinClient(settings.jellyfinUrl);
-		const libraries = await client.musicLibraries(locals.session.jellyfinToken).catch(() => []);
+		const libraries = await client.videoLibraries(locals.session.jellyfinToken).catch(() => []);
 		return {
 			phase: 'library' as const,
 			libraries: libraries.map((l) => ({ name: l.name, locations: l.locations }))
@@ -67,7 +67,7 @@ export const actions: Actions = {
 					error: 'Setup requires a Jellyfin administrator account.'
 				});
 			}
-			if (!requireAdmin() && !canUseMyoutarr(auth)) {
+			if (!requireAdmin() && !canUseYoutarr(auth)) {
 				return fail(403, {
 					step: 'connect',
 					url,
@@ -97,7 +97,7 @@ export const actions: Actions = {
 		redirect(303, '/setup');
 	},
 
-	/** Final step: persist the chosen music library path. Requires the session from `connect`. */
+	/** Final step: persist the chosen media library path. Requires the session from `connect`. */
 	library: async ({ request, locals }) => {
 		if (!locals.session)
 			return fail(401, { step: 'library', error: 'Session expired - log in again.' });
@@ -107,14 +107,14 @@ export const actions: Actions = {
 			return fail(400, { step: 'library', error: 'Choose or enter a library path.' });
 		}
 		updateSettings({ jellyfinLibraryPath: libraryPath });
-		// The sentinel marks the real (mounted) music volume; its absence later
+		// The sentinel marks the real (mounted) media volume; its absence later
 		// means the mount dropped and downloads must refuse to write.
 		try {
 			createSentinel();
 		} catch (cause) {
 			return fail(500, {
 				step: 'library',
-				error: `Music volume is not writable: ${(cause as Error).message}`
+				error: `Media volume is not writable: ${(cause as Error).message}`
 			});
 		}
 		redirect(303, '/');

@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Settings } from '../settings.ts';
 
 /**
- * Build the yt-dlp argv for one track download.
+ * Build the yt-dlp argv for one video download.
  *
  * SECURITY: the result is only ever passed to execFile/spawn as an argv array.
  * Building a shell string from any of this (video ids and titles are
@@ -13,15 +13,15 @@ export function buildYtdlpArgs(options: {
 	scratchDir: string;
 	settings: Pick<
 		Settings,
-		'audioFormat' | 'audioQuality' | 'sponsorBlock' | 'rateLimit' | 'ytdlpPlayerClient'
+		'videoFormat' | 'maxResolution' | 'sponsorBlock' | 'rateLimit' | 'ytdlpPlayerClient'
 	>;
 	cookiesFile?: string;
 	/**
 	 * Base URL of a bgutil PO Token provider HTTP server. When set, yt-dlp's
-	 * bgutil plugin fetches GVS PO Tokens from it, letting the `web`/`web_music`
-	 * clients hand out audio without the "Requested format is not available"
-	 * failure. Deployment-level (points at a sibling container), so it comes from
-	 * an env var, not a per-user setting.
+	 * bgutil plugin fetches GVS PO Tokens from it, letting the `web` client hand
+	 * out formats without the "Requested format is not available" failure.
+	 * Deployment-level (points at a sibling container), so it comes from an env
+	 * var, not a per-user setting.
 	 */
 	potProviderBaseUrl?: string;
 	/**
@@ -37,20 +37,20 @@ export function buildYtdlpArgs(options: {
 	if (!/^[A-Za-z0-9_-]{6,20}$/.test(videoId)) {
 		throw new Error(`suspicious video id rejected: ${JSON.stringify(videoId)}`);
 	}
+	const heightCap = settings.maxResolution === 'best' ? null : Number(settings.maxResolution);
+	const format = heightCap
+		? `bestvideo[height<=${heightCap}]+bestaudio/best[height<=${heightCap}]`
+		: 'bestvideo+bestaudio/best';
 	const args = [
 		'--no-playlist',
-		// Prefer an audio-only stream, but fall back to the best combined format
-		// so videos that expose no standalone audio format still download instead
-		// of failing with "Requested format is not available".
 		'--format',
-		'bestaudio/best',
-		'--extract-audio',
-		'--audio-format',
-		settings.audioFormat,
-		'--audio-quality',
-		String(settings.audioQuality),
+		format,
+		'--merge-output-format',
+		settings.videoFormat,
+		'--remux-video',
+		settings.videoFormat,
 		'--output',
-		path.join(scratchDir, 'track.%(ext)s'),
+		path.join(scratchDir, 'video.%(ext)s'),
 		'--paths',
 		`temp:${scratchDir}`,
 		'--newline',
@@ -62,9 +62,8 @@ export function buildYtdlpArgs(options: {
 		'--socket-timeout',
 		'15'
 	];
-	// Override yt-dlp's client selection. music.youtube.com URLs otherwise resolve
-	// via the `web_music` client, which now requires a GVS PO Token and returns no
-	// downloadable audio without one. See settings.ytdlpPlayerClient.
+	// Override yt-dlp's client selection when the default stops yielding
+	// downloadable formats without a GVS PO Token. See settings.ytdlpPlayerClient.
 	if (settings.ytdlpPlayerClient) {
 		if (!/^[A-Za-z0-9_+,-]+$/.test(settings.ytdlpPlayerClient)) {
 			throw new Error(`invalid player client: ${JSON.stringify(settings.ytdlpPlayerClient)}`);
@@ -95,7 +94,7 @@ export function buildYtdlpArgs(options: {
 		args.push('--extractor-args', `youtubepot-bgutilhttp:base_url=${base}`);
 	}
 	if (settings.sponsorBlock) {
-		args.push('--sponsorblock-remove', 'music_offtopic');
+		args.push('--sponsorblock-remove', 'sponsor,selfpromo,interaction');
 	}
 	if (settings.rateLimit) {
 		if (!/^\d+(\.\d+)?[KMG]?$/i.test(settings.rateLimit)) {
@@ -107,6 +106,6 @@ export function buildYtdlpArgs(options: {
 		args.push('--cookies', options.cookiesFile);
 	}
 	// The id is constrained above, and '--' stops option parsing regardless.
-	args.push('--', `https://music.youtube.com/watch?v=${videoId}`);
+	args.push('--', `https://www.youtube.com/watch?v=${videoId}`);
 	return args;
 }

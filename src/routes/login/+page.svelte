@@ -7,13 +7,13 @@
 </script>
 
 <svelte:head>
-	<title>Sign in - myoutarr</title>
+	<title>Sign in - youtarr</title>
 </svelte:head>
 
 <div class="flex min-h-dvh items-center justify-center bg-canvas px-4">
 	<div class="w-full max-w-sm rounded-2xl bg-surface p-8 shadow-xl">
 		<div class="mb-8 text-center">
-			<h1 class="text-2xl font-bold text-ink">myoutarr</h1>
+			<h1 class="text-2xl font-bold text-ink">youtarr</h1>
 			<p class="mt-1 text-sm text-ink-muted">Sign in with your Jellyfin account</p>
 		</div>
 

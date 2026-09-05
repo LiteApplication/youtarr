@@ -7,11 +7,11 @@ PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 
 if [ "$(id -u)" = "0" ]; then
-	if ! getent group myoutarr > /dev/null 2>&1; then
-		groupadd -o -g "$PGID" myoutarr
+	if ! getent group youtarr > /dev/null 2>&1; then
+		groupadd -o -g "$PGID" youtarr
 	fi
-	if ! getent passwd myoutarr > /dev/null 2>&1; then
-		useradd -o -u "$PUID" -g "$PGID" -d /config -s /bin/sh myoutarr
+	if ! getent passwd youtarr > /dev/null 2>&1; then
+		useradd -o -u "$PUID" -g "$PGID" -d /config -s /bin/sh youtarr
 	fi
 
 	# Scratch is ephemeral tmpfs (SCRATCH_DIR), not under /config - nothing to create here.
@@ -24,9 +24,9 @@ if [ "$(id -u)" = "0" ]; then
 	if ! chown -R "$PUID:$PGID" /config 2> /dev/null; then
 		echo "note: could not chown /config (expected on root_squash NFS); verifying write access instead"
 	fi
-	# /music is a shared volume - only ensure top-level access, never recurse
+	# /media is a shared volume - only ensure top-level access, never recurse
 	# (a recursive chown over a large Gluster library would be brutal).
-	chown "$PUID:$PGID" /music 2> /dev/null || true
+	chown "$PUID:$PGID" /media 2> /dev/null || true
 
 	# The chown may be a no-op or may have failed; what actually matters is that
 	# the app user can write /config. Probe by writing a real file (access() can

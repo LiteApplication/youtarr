@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
-import { musicDir } from '../env.ts';
+import { mediaDir } from '../env.ts';
 import { publish } from '../events.ts';
 import { getSettings } from '../settings.ts';
 import { JellyfinClient } from './client.ts';
@@ -24,15 +24,15 @@ export function tokenFor(userId: string, db: DB): { token: string } | null {
 }
 
 /**
- * Translate a path on myoutarr's /music mount into the path Jellyfin sees
+ * Translate a path on youtarr's media mount into the path Jellyfin sees
  * for the same file (they mount the same volume at different points).
  */
 export function toJellyfinPath(
 	outputPath: string,
 	libraryPath: string,
-	musicRoot?: string
+	mediaRoot?: string
 ): string {
-	const relative = path.relative(musicRoot ?? musicDir(), outputPath);
+	const relative = path.relative(mediaRoot ?? mediaDir(), outputPath);
 	return path.posix.join(libraryPath, ...relative.split(path.sep));
 }
 
@@ -64,13 +64,13 @@ export function setBatchPlaylistId(batchId: string, playlistId: string, db: DB =
 
 /**
  * Materialise a playlist batch into a Jellyfin playlist under the requesting
- * user's account. Idempotent and additive: it resolves each completed track to
+ * user's account. Idempotent and additive: it resolves each completed video to
  * an item id and adds only the ones not already in the playlist, so it can be
  * called repeatedly as a batch downloads (progressive) and again on drain.
  *
- * Tracks already in the library are completed jobs with an output_path, so they
+ * Videos already in the library are completed jobs with an output_path, so they
  * resolve by path and are included too. With `poll` (default), it waits for the
- * scan to surface every track; with `poll: false` it does a single pass and adds
+ * scan to surface every video; with `poll: false` it does a single pass and adds
  * whatever Jellyfin has already indexed - used for mid-batch incremental syncs.
  */
 export async function syncPlaylistBatch(
@@ -89,7 +89,6 @@ export async function syncPlaylistBatch(
 				title: string;
 				created_by: string;
 				jellyfin_playlist_id: string | null;
-				prepend: number;
 				sync_jellyfin: number;
 		  }
 		| undefined;
@@ -119,19 +118,19 @@ export async function syncPlaylistBatch(
 		const meta = JSON.parse(job.meta) as { title: string };
 		return {
 			title: meta.title,
-			jellyfinPath: toJellyfinPath(job.output_path, settings.jellyfinLibraryPath || '/music')
+			jellyfinPath: toJellyfinPath(job.output_path, settings.jellyfinLibraryPath || '/media')
 		};
 	});
 
-	// Resolve tracks to item ids, waiting for the scan when polling is enabled.
+	// Resolve videos to item ids, waiting for the scan when polling is enabled.
 	const found = new Map<string, string>();
 	for (let attempt = 0; attempt < attempts; attempt++) {
-		for (const track of wanted) {
-			if (found.has(track.jellyfinPath)) continue;
+		for (const video of wanted) {
+			if (found.has(video.jellyfinPath)) continue;
 			const id = await client
-				.findAudioByPath(session.token, track.title, track.jellyfinPath)
+				.findVideoByPath(session.token, video.title, video.jellyfinPath)
 				.catch(() => null);
-			if (id) found.set(track.jellyfinPath, id);
+			if (id) found.set(video.jellyfinPath, id);
 		}
 		if (found.size === wanted.length || attempt === attempts - 1) break;
 		await new Promise((r) => setTimeout(r, interval));
@@ -140,13 +139,13 @@ export async function syncPlaylistBatch(
 	if (found.size === 0) {
 		// Expected mid-download (nothing scanned yet); only noise-worthy on a full pass.
 		if (options.poll !== false) {
-			console.error(`playlist sync: Jellyfin never surfaced any track of "${batch.title}"`);
+			console.error(`playlist sync: Jellyfin never surfaced any video of "${batch.title}"`);
 		}
 		return null;
 	}
 
 	const itemIds = wanted
-		.map((track) => found.get(track.jellyfinPath))
+		.map((video) => found.get(video.jellyfinPath))
 		.filter((id): id is string => id !== undefined);
 
 	// Resolve the target playlist: the one we recorded earlier, else by name.
@@ -166,13 +165,7 @@ export async function syncPlaylistBatch(
 			await client.playlistItemIds(session.token, playlistId, session.userId).catch(() => [])
 		);
 		const toAdd = itemIds.filter((id) => !present.has(id));
-		// Recommendation batches prepend new tracks to the top of the playlist;
-		// everything else appends. New-playlist creation preserves order either way.
-		if (batch.prepend) {
-			await client.prependToPlaylist(session.token, playlistId, session.userId, toAdd);
-		} else {
-			await client.addToPlaylist(session.token, playlistId, session.userId, toAdd);
-		}
+		await client.addToPlaylist(session.token, playlistId, session.userId, toAdd);
 	} else {
 		playlistId = await client.createPlaylist(session.token, session.userId, batch.title, itemIds);
 	}
@@ -188,14 +181,14 @@ export async function syncPlaylistBatch(
 	return { playlistId, matched: itemIds.length, total: wanted.length };
 }
 
-/** Coalesce bursts of per-track completions into at most one running sync per batch. */
+/** Coalesce bursts of per-video completions into at most one running sync per batch. */
 const INCREMENTAL_DEBOUNCE_MS = 8_000;
 const incrementalTimers = new Map<string, NodeJS.Timeout>();
 const incrementalRunning = new Set<string>();
 const incrementalDirty = new Set<string>();
 
 /**
- * Debounced, single-pass playlist sync fired as tracks of a playlist land, so
+ * Debounced, single-pass playlist sync fired as videos of a playlist land, so
  * the Jellyfin playlist grows progressively. Never overlaps itself per batch; a
  * completion arriving during a run schedules exactly one follow-up pass.
  */

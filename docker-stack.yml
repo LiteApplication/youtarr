@@ -1,23 +1,23 @@
-# Docker Swarm stack for myoutarr with the music library on GlusterFS.
+# Docker Swarm stack for youtarr with the media library on GlusterFS.
 #
 # Prerequisites:
 #   1. GlusterFS is mounted OUTSIDE Docker on each node that may run the task
-#      (e.g. /mnt/gluster/music via fstab with _netdev), and the stack
+#      (e.g. /mnt/gluster/media via fstab with _netdev), and the stack
 #      bind-mounts that path. No volume plugin in the critical path.
 #   2. Pin the service to the node holding /config (SQLite must be on
 #      node-local storage - never on Gluster):
-#        docker node update --label-add myoutarr=true <node>
+#        docker node update --label-add youtarr=true <node>
 #   3. Secrets: nothing requires one today (sessions are opaque random ids in
 #      the local database, and Jellyfin tokens come from user logins). Any env
 #      var can still be provided as a Docker secret: mount it and set
 #      <NAME>_FILE=/run/secrets/<name> - the app reads secret files first.
 #
 # PUID/PGID must resolve to the same numeric ids on every Gluster node and in
-# Jellyfin's container, or Jellyfin cannot read what myoutarr writes.
+# Jellyfin's container, or Jellyfin cannot read what youtarr writes.
 
 services:
-  myoutarr:
-    image: ghcr.io/liteapplication/myoutarr:latest
+  youtarr:
+    image: ghcr.io/liteapplication/youtarr:latest
     ports:
       - '8687:8687'
     environment:
@@ -34,9 +34,9 @@ services:
       POT_PROVIDER_BASE_URL: 'http://bgutil-provider:4416'
     volumes:
       # node-local: SQLite (WAL) + per-account cookies - must not be on Gluster
-      - /opt/myoutarr/config:/config
+      - /opt/youtarr/config:/config
       # the shared library on the GlusterFS FUSE mountpoint
-      - /mnt/gluster/music:/music
+      - /mnt/gluster/media:/media
       # ephemeral scratch in RAM - never persisted, never on network storage.
       # Bump size if you raise download concurrency or expect large files.
       - type: tmpfs
@@ -57,7 +57,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.labels.myoutarr == true
+          - node.labels.youtarr == true
       update_config:
         order: stop-first
       restart_policy:

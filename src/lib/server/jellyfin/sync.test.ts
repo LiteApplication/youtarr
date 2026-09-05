@@ -11,7 +11,7 @@ let dir: string;
 let db: DB;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-sync-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-sync-'));
 	db = openDatabase(path.join(dir, 'test.db'));
 	updateSettings({ jellyfinUrl: 'http://jf:8096', jellyfinLibraryPath: '/data/music' }, db);
 	db.prepare(
@@ -47,7 +47,7 @@ function seedPlaylistBatch(statuses: ('completed' | 'failed')[]): string {
 }
 
 describe('toJellyfinPath', () => {
-	it('translates the myoutarr mount into the Jellyfin library path', () => {
+	it('translates the youtarr mount into the Jellyfin library path', () => {
 		expect(
 			toJellyfinPath('/music/Daft Punk/Discovery (2001)/01 - X.opus', '/data/music', '/music')
 		).toBe('/data/music/Daft Punk/Discovery (2001)/01 - X.opus');

@@ -7,25 +7,26 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const file = form.get('file');
 		if (!(file instanceof File) || file.size === 0) {
-			return fail(400, { error: 'Choose an audio file to upload.' });
+			return fail(400, { error: 'Choose a video file to upload.' });
 		}
 		const title = String(form.get('title') ?? '').trim();
-		const artist = String(form.get('artist') ?? '').trim();
-		const album = String(form.get('album') ?? '').trim();
-		if (!title || !artist || !album) {
-			return fail(400, { error: 'Title, artist, and album are required.' });
+		const channel = String(form.get('channel') ?? '').trim();
+		const season = String(form.get('season') ?? '').trim();
+		const episodeRaw = String(form.get('episode') ?? '').trim();
+		const episode = Number(episodeRaw);
+		if (!title || !channel || !season || !episodeRaw || !Number.isInteger(episode)) {
+			return fail(400, { error: 'Title, channel, season, and episode number are required.' });
 		}
-		const trackRaw = String(form.get('trackNumber') ?? '').trim();
+		const airedRaw = String(form.get('aired') ?? '').trim();
 		try {
 			const data = Buffer.from(await file.arrayBuffer());
 			const result = await ingestUpload(file.name, data, {
 				title,
-				artist,
-				album,
-				albumArtist: String(form.get('albumArtist') ?? '').trim() || undefined,
-				year: String(form.get('year') ?? '').trim() || undefined,
-				genre: String(form.get('genre') ?? '').trim() || undefined,
-				trackNumber: trackRaw ? Number(trackRaw) : undefined
+				channel,
+				season,
+				episode,
+				// The <input type="date"> gives YYYY-MM-DD; NFOs (and JobMeta) use YYYYMMDD.
+				aired: airedRaw ? airedRaw.replaceAll('-', '') : undefined
 			});
 			redirect(
 				303,

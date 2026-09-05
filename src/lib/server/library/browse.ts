@@ -1,17 +1,14 @@
-import { execFile } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
-import { musicDir } from '../env.ts';
+import { mediaDir } from '../env.ts';
 
-const execFileAsync = promisify(execFile);
-const AUDIO_EXTENSIONS = new Set(['.opus', '.m4a', '.mp3', '.flac', '.ogg']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.webm', '.m4v', '.avi']);
 
 /**
  * Resolve a library-relative path from the client and refuse anything that
- * escapes the music root. All /api/library and editor input goes through this.
+ * escapes the media root. All /api/library and editor input goes through this.
  */
-export function safeLibraryPath(relative: string, root: string = musicDir()): string {
+export function safeLibraryPath(relative: string, root: string = mediaDir()): string {
 	const absolute = path.resolve(root, relative);
 	const rootPrefix = path.resolve(root) + path.sep;
 	if (absolute !== path.resolve(root) && !absolute.startsWith(rootPrefix)) {
@@ -24,12 +21,12 @@ export interface LibraryEntry {
 	name: string;
 	/** library-relative path */
 	path: string;
-	kind: 'directory' | 'audio';
+	kind: 'directory' | 'video';
 	sizeBytes?: number;
 }
 
 /** One directory level of the library, directories first. */
-export function listLibrary(relative = '', root: string = musicDir()): LibraryEntry[] {
+export function listLibrary(relative = '', root: string = mediaDir()): LibraryEntry[] {
 	const absolute = safeLibraryPath(relative, root);
 	let names: string[];
 	try {
@@ -49,11 +46,11 @@ export function listLibrary(relative = '', root: string = musicDir()): LibraryEn
 		}
 		if (stats.isDirectory()) {
 			entries.push({ name, path: path.join(relative, name), kind: 'directory' });
-		} else if (AUDIO_EXTENSIONS.has(path.extname(name).toLowerCase())) {
+		} else if (VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase())) {
 			entries.push({
 				name,
 				path: path.join(relative, name),
-				kind: 'audio',
+				kind: 'video',
 				sizeBytes: stats.size
 			});
 		}
@@ -63,26 +60,46 @@ export function listLibrary(relative = '', root: string = musicDir()): LibraryEn
 	);
 }
 
-export interface FileTags {
+export interface EpisodeInfo {
 	title: string | null;
-	artist: string | null;
-	albumartist: string | null;
-	album: string | null;
-	date: string | null;
-	genre: string | null;
-	tracknumber: string | null;
-	length_seconds?: number;
+	showTitle: string | null;
+	season: string | null;
+	episode: number | null;
+	aired: string | null;
 }
 
-export async function readTags(
-	relative: string,
-	options: { root?: string; pythonBin?: string; script?: string } = {}
-): Promise<FileTags> {
-	const absolute = safeLibraryPath(relative, options.root ?? musicDir());
-	const { stdout } = await execFileAsync(
-		options.pythonBin ?? process.env.YTM_PYTHON ?? 'python3',
-		[options.script ?? process.env.READ_TAGS_SCRIPT ?? 'python/read_tags.py', absolute],
-		{ timeout: 15_000 }
-	);
-	return JSON.parse(stdout) as FileTags;
+function unesc(value: string): string {
+	return value
+		.replaceAll('&lt;', '<')
+		.replaceAll('&gt;', '>')
+		.replaceAll('&quot;', '"')
+		.replaceAll('&apos;', "'")
+		.replaceAll('&amp;', '&');
+}
+
+function pick(xml: string, name: string): string | null {
+	const m = xml.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
+	return m ? unesc(m[1]) : null;
+}
+
+/**
+ * Read a video's metadata straight from its sidecar `.nfo` (no embedded-tag
+ * reader needed - Jellyfin reads the NFO, so that's the source of truth here
+ * too). Returns nulls when there is no NFO yet.
+ */
+export function readEpisodeInfo(relative: string, root: string = mediaDir()): EpisodeInfo {
+	const absolute = safeLibraryPath(relative, root);
+	const nfoPath = absolute.replace(/\.[^./\\]+$/, '.nfo');
+	if (!existsSync(nfoPath)) {
+		return { title: null, showTitle: null, season: null, episode: null, aired: null };
+	}
+	const xml = readFileSync(nfoPath, 'utf8');
+	const episode = pick(xml, 'episode');
+	return {
+		title: pick(xml, 'title'),
+		showTitle: pick(xml, 'showtitle'),
+		season: pick(xml, 'season'),
+		episode: episode ? Number(episode) : null,
+		aired: pick(xml, 'aired')
+	};
 }

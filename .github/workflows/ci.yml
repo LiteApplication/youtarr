@@ -26,9 +26,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # Pipeline tests tag real Opus files: they need ffmpeg + mutagen.
+      # Pipeline tests exercise real video files: they need ffmpeg.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: python3 -m venv .venv && .venv/bin/pip install ytmusicapi mutagen
       - run: npm ci
       - run: npm run test:unit
 
@@ -54,18 +53,17 @@ jobs:
         with:
           context: .
           load: true
-          tags: myoutarr:ci
+          tags: youtarr:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test container
         run: |
-          docker run -d --name smoke -p 8687:8687 myoutarr:ci
+          docker run -d --name smoke -p 8687:8687 youtarr:ci
           for i in $(seq 1 20); do
             if curl -fs http://localhost:8687/api/health > /dev/null; then break; fi
             sleep 2
           done
           curl -fs http://localhost:8687/api/health
           docker exec smoke /opt/venv/bin/yt-dlp --version
-          docker exec smoke /opt/venv/bin/python -c "import ytmusicapi, mutagen"
           docker exec smoke ffmpeg -version > /dev/null
           docker rm -f smoke

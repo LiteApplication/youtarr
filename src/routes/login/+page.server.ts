@@ -5,7 +5,7 @@ import {
 	SESSION_COOKIE
 } from '$lib/server/auth/session';
 import { requireAdmin } from '$lib/server/env';
-import { canUseMyoutarr, JellyfinClient, JellyfinError } from '$lib/server/jellyfin/client';
+import { canUseYoutarr, JellyfinClient, JellyfinError } from '$lib/server/jellyfin/client';
 import { getSettings } from '$lib/server/settings';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -33,7 +33,7 @@ export const actions: Actions = {
 			if (requireAdmin() && !auth.isAdmin) {
 				return fail(403, { error: 'This instance is restricted to Jellyfin administrators.' });
 			}
-			if (!requireAdmin() && !canUseMyoutarr(auth)) {
+			if (!requireAdmin() && !canUseYoutarr(auth)) {
 				return fail(403, {
 					error: 'Your Jellyfin account needs collection-management rights to use this.'
 				});

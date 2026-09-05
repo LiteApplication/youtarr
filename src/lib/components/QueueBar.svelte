@@ -19,11 +19,11 @@
 				{#if current.meta.thumbnail}
 					<img src={current.meta.thumbnail} alt="" class="h-11 w-11 rounded object-cover" />
 				{:else}
-					<div class="grid h-11 w-11 place-items-center rounded bg-surface-3 text-ink-faint">♪</div>
+					<div class="grid h-11 w-11 place-items-center rounded bg-surface-3 text-ink-faint">▶</div>
 				{/if}
 				<div class="min-w-0 flex-1">
 					<p class="truncate text-sm text-ink">{current.meta.title}</p>
-					<p class="truncate text-xs text-ink-muted">{current.meta.artist}</p>
+					<p class="truncate text-xs text-ink-muted">{current.meta.channel}</p>
 					<div class="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-3">
 						<div
 							class="h-full rounded-full bg-accent transition-[width] duration-300"

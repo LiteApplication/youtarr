@@ -19,7 +19,7 @@ let dir: string;
 let db: DB;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-plsync-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-plsync-'));
 	db = openDatabase(path.join(dir, 'test.db'));
 });
 

@@ -13,7 +13,7 @@ const TAG_SCRIPT = path.join(PROJECT, 'python/tag.py');
 const READ_SCRIPT = path.join(PROJECT, 'python/read_tags.py');
 // Per-file fixture path: test files run in parallel workers, so a shared name
 // would let one worker read the fixture while another is mid-ffmpeg-write.
-const FIXTURE = path.join(tmpdir(), 'myoutarr-fixture-edit.opus');
+const FIXTURE = path.join(tmpdir(), 'youtarr-fixture-edit.opus');
 
 beforeAll(() => {
 	if (!existsSync(FIXTURE)) {
@@ -38,7 +38,7 @@ beforeAll(() => {
 let root: string;
 
 beforeEach(() => {
-	root = mkdtempSync(path.join(tmpdir(), 'myoutarr-edit-'));
+	root = mkdtempSync(path.join(tmpdir(), 'youtarr-edit-'));
 	createSentinel(root);
 	process.env.MUSIC_DIR = root;
 	// Settings read from a throwaway config db.
@@ -150,7 +150,7 @@ describe('upload → edit round trip', () => {
 			{ title: 'T', artist: 'A', album: 'B' },
 			{ root, pythonBin: PYTHON, tagScript: TAG_SCRIPT, resolveCredits: typedCredits }
 		);
-		mkdirSync(path.join(root, '.myoutarr-staging/x'), { recursive: true });
+		mkdirSync(path.join(root, '.youtarr-staging/x'), { recursive: true });
 		const top = listLibrary('', root);
 		expect(top.map((e) => e.name)).toEqual(['A']);
 		const album = listLibrary('A/B', root);

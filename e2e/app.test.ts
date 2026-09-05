@@ -19,7 +19,7 @@ test.describe.configure({ mode: 'serial' });
 test('unconfigured instance redirects to the setup wizard', async ({ page }) => {
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/setup/);
-	await expect(page.getByRole('heading', { name: 'Welcome to myoutarr' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Welcome to youtarr' })).toBeVisible();
 });
 
 test('setup wizard: connect, authenticate, pick a library', async ({ page }) => {

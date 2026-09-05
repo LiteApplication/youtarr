@@ -29,9 +29,9 @@ export const load: PageServerLoad = ({ locals }) => {
 			.get(userId) as { c: number }
 	).c;
 
-	const artistSubCount = (
+	const channelSubCount = (
 		db
-			.prepare('SELECT COUNT(*) AS c FROM artist_subscriptions WHERE created_by = ?')
+			.prepare('SELECT COUNT(*) AS c FROM channel_subscriptions WHERE created_by = ?')
 			.get(userId) as { c: number }
 	).c;
 	const playlistSubCount = (
@@ -44,20 +44,20 @@ export const load: PageServerLoad = ({ locals }) => {
 		completedCount,
 		failedCount,
 		queuedCount,
-		subscriptionsCount: artistSubCount + playlistSubCount
+		subscriptionsCount: channelSubCount + playlistSubCount
 	};
 
 	// Get 5 recent downloads
 	const recentDownloads = listRecentJobs(userId, db, 5);
 
 	// Get sub lists to display on home page
-	const artistSubs = listSubscriptions(userId, db).slice(0, 4);
+	const channelSubs = listSubscriptions(userId, db).slice(0, 4);
 	const playlistSubs = listPlaylistSubscriptions(userId, db).slice(0, 4);
 
 	return {
 		stats,
 		recentDownloads,
-		artistSubs,
+		channelSubs,
 		playlistSubs
 	};
 };

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Thumbnail } from '$lib/server/ytmusic/api';
+	import type { Thumbnail } from '$lib/server/ytdlp/metadata';
 
 	let {
 		href,
@@ -15,7 +15,7 @@
 		round?: boolean;
 	} = $props();
 
-	// Pick the largest art we were given; YT Music thumbnails are ordered ascending.
+	// Pick the largest art we were given; thumbnails are ordered ascending.
 	let art = $derived(thumbnails.at(-1)?.url ?? '');
 </script>
 
@@ -36,7 +36,7 @@
 				class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
 			/>
 		{:else}
-			<div class="grid h-full w-full place-items-center text-3xl text-ink-faint">♪</div>
+			<div class="grid h-full w-full place-items-center text-3xl text-ink-faint">▶</div>
 		{/if}
 	</div>
 	<p class="line-clamp-2-fixed mt-2 text-sm font-medium text-ink">{title}</p>

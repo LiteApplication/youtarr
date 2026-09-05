@@ -8,7 +8,7 @@ export interface QueueJob {
 	status: 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 	progress: number;
 	error: string | null;
-	meta: { title: string; artist: string; album: string; thumbnail?: string };
+	meta: { title: string; channel: string; thumbnail?: string };
 }
 
 export interface QueueBatch {
@@ -16,7 +16,7 @@ export interface QueueBatch {
 	kind: string;
 	sourceId: string;
 	title: string;
-	artist: string | null;
+	channel: string | null;
 	thumbnail: string | null;
 	createdAt: number;
 	/** Set once the batch has been materialised into a Jellyfin playlist. */

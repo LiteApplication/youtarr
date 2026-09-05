@@ -1,9 +1,9 @@
 # Plain docker-compose for non-Swarm users. See docker-stack.yml for Swarm.
 services:
-  myoutarr:
-    image: ghcr.io/liteapplication/myoutarr:latest
+  youtarr:
+    image: ghcr.io/liteapplication/youtarr:latest
     build: .
-    container_name: myoutarr
+    container_name: youtarr
     ports:
       - '8687:8687'
     environment:
@@ -14,13 +14,13 @@ services:
       # Ephemeral download scratch on the tmpfs mount below - keeps high-churn
       # yt-dlp I/O off the config volume.
       SCRATCH_DIR: '/scratch'
-      # PO Token provider: lets yt-dlp's web/web_music clients serve audio again
+      # PO Token provider: lets yt-dlp's web client serve video again
       # (fixes "Requested format is not available"). Points at the sibling
       # service below. Remove it (and the service) to disable.
       POT_PROVIDER_BASE_URL: 'http://bgutil-provider:4416'
     volumes:
       - ./config:/config
-      - /path/to/your/music:/music
+      - /path/to/your/media:/media
       # ephemeral scratch in RAM - never persisted. Bump size for higher concurrency.
       - type: tmpfs
         target: /scratch
@@ -37,4 +37,4 @@ services:
     container_name: bgutil-provider
     init: true
     restart: unless-stopped
-    # No published ports needed: only myoutarr talks to it, over the compose network.
+    # No published ports needed: only youtarr talks to it, over the compose network.

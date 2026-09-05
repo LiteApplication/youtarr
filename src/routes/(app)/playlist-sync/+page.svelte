@@ -22,8 +22,8 @@
 			if (!response.ok) throw new Error(body.error ?? `request failed (${response.status})`);
 			checkResult =
 				body.enqueued > 0
-					? `Queued ${body.enqueued} new song${body.enqueued === 1 ? '' : 's'}.`
-					: 'No new songs found.';
+					? `Queued ${body.enqueued} new video${body.enqueued === 1 ? '' : 's'}.`
+					: 'No new videos found.';
 			await invalidateAll();
 		} catch (cause) {
 			checkResult = (cause as Error).message;
@@ -32,13 +32,13 @@
 		}
 	}
 
-	async function toggle(browseId: string, enabled: boolean) {
-		busyId = browseId;
+	async function toggle(playlistId: string, enabled: boolean) {
+		busyId = playlistId;
 		try {
 			await fetch('/api/playlists', {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ browseId, enabled })
+				body: JSON.stringify({ playlistId, enabled })
 			});
 			await invalidateAll();
 		} finally {
@@ -46,13 +46,13 @@
 		}
 	}
 
-	async function stopSyncing(browseId: string) {
-		busyId = browseId;
+	async function stopSyncing(playlistId: string) {
+		busyId = playlistId;
 		try {
 			await fetch('/api/playlists', {
 				method: 'DELETE',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ browseId })
+				body: JSON.stringify({ playlistId })
 			});
 			await invalidateAll();
 		} finally {
@@ -62,14 +62,14 @@
 </script>
 
 <svelte:head>
-	<title>Playlist Sync - myoutarr</title>
+	<title>Playlist Sync - youtarr</title>
 </svelte:head>
 
 <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
 	<div>
 		<h1 class="text-3xl font-bold tracking-tight">Playlist Sync</h1>
 		<p class="mt-1 text-sm text-ink-muted">
-			Songs added to a followed playlist download automatically and join the matching Jellyfin
+			Videos added to a followed playlist download automatically and join the matching Jellyfin
 			playlist, checked about every {data.checkHours} hour{data.checkHours === 1 ? '' : 's'}. Toggle
 			a playlist off to leave it alone without forgetting it.
 		</p>
@@ -90,13 +90,13 @@
 {#if data.subscriptions.length === 0}
 	<p class="mt-16 text-center text-ink-muted">
 		You aren't syncing any playlists yet. Open a playlist and choose
-		<span class="text-ink">Sync new songs</span>.
+		<span class="text-ink">Sync new videos</span>.
 	</p>
 {:else}
 	<ul class="divide-y divide-line overflow-hidden rounded-xl bg-surface">
-		{#each data.subscriptions as sub (sub.browseId)}
+		{#each data.subscriptions as sub (sub.playlistId)}
 			<li class="flex items-center gap-4 px-4 py-3">
-				<a href="/playlist/{sub.browseId}" class="shrink-0">
+				<a href="/playlist/{sub.playlistId}" class="shrink-0">
 					{#if sub.thumbnail}
 						<img src={sub.thumbnail} alt="" class="h-12 w-12 rounded bg-surface-3 object-cover" />
 					{:else}
@@ -104,7 +104,7 @@
 					{/if}
 				</a>
 				<div class="min-w-0 flex-1">
-					<a href="/playlist/{sub.browseId}" class="truncate font-medium hover:underline">
+					<a href="/playlist/{sub.playlistId}" class="truncate font-medium hover:underline">
 						{sub.title}
 					</a>
 					<p class="truncate text-xs text-ink-faint">
@@ -112,8 +112,8 @@
 					</p>
 				</div>
 				<button
-					onclick={() => toggle(sub.browseId, !sub.enabled)}
-					disabled={busyId === sub.browseId}
+					onclick={() => toggle(sub.playlistId, !sub.enabled)}
+					disabled={busyId === sub.playlistId}
 					role="switch"
 					aria-checked={sub.enabled}
 					aria-label="Toggle syncing for {sub.title}"
@@ -130,11 +130,11 @@
 					></span>
 				</button>
 				<button
-					onclick={() => stopSyncing(sub.browseId)}
-					disabled={busyId === sub.browseId}
+					onclick={() => stopSyncing(sub.playlistId)}
+					disabled={busyId === sub.playlistId}
 					class="rounded-full border border-line px-4 py-1.5 text-sm text-ink-muted transition hover:bg-surface-2 hover:text-ink disabled:opacity-50"
 				>
-					{busyId === sub.browseId ? '…' : 'Stop syncing'}
+					{busyId === sub.playlistId ? '…' : 'Stop syncing'}
 				</button>
 			</li>
 		{/each}

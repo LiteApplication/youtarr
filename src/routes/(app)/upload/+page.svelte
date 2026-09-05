@@ -6,25 +6,23 @@
 	let submitting = $state(false);
 
 	const fields = [
-		{ name: 'title', label: 'Title', required: true },
-		{ name: 'artist', label: 'Artist', required: true },
-		{ name: 'album', label: 'Album', required: true },
-		{ name: 'albumArtist', label: 'Album artist', required: false },
-		{ name: 'year', label: 'Year', required: false },
-		{ name: 'genre', label: 'Genre', required: false },
-		{ name: 'trackNumber', label: 'Track #', required: false }
+		{ name: 'title', label: 'Title', required: true, type: 'text' },
+		{ name: 'channel', label: 'Channel', required: true, type: 'text' },
+		{ name: 'season', label: 'Season', required: true, type: 'text' },
+		{ name: 'episode', label: 'Episode #', required: true, type: 'number' },
+		{ name: 'aired', label: 'Upload date', required: false, type: 'date' }
 	];
 </script>
 
 <svelte:head>
-	<title>Upload - myoutarr</title>
+	<title>Upload - youtarr</title>
 </svelte:head>
 
 <div class="mx-auto max-w-xl">
-	<h1 class="text-3xl font-bold">Upload music</h1>
+	<h1 class="text-3xl font-bold">Upload video</h1>
 	<p class="mt-1 text-sm text-ink-muted">
-		Add your own files to the library. They are tagged, filed by the naming template, and given NFOs
-		- exactly like downloaded tracks.
+		Add your own files to the library. They are filed by the naming template and given NFOs -
+		exactly like downloaded videos.
 	</p>
 
 	<form
@@ -40,12 +38,12 @@
 		class="mt-6 space-y-4 rounded-2xl bg-surface p-6"
 	>
 		<label class="block">
-			<span class="mb-1 block text-sm text-ink-muted">Audio file (opus, m4a, mp3, flac, ogg)</span>
+			<span class="mb-1 block text-sm text-ink-muted">Video file (mp4, mkv, webm, m4v, avi)</span>
 			<input
 				name="file"
 				type="file"
 				required
-				accept=".opus,.m4a,.mp3,.flac,.ogg,audio/*"
+				accept=".mp4,.mkv,.webm,.m4v,.avi,video/*"
 				class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-surface-3 file:px-4 file:py-1.5 file:text-ink-muted"
 			/>
 		</label>
@@ -56,7 +54,7 @@
 					<span class="mb-1 block text-sm text-ink-muted">{field.label}</span>
 					<input
 						name={field.name}
-						type="text"
+						type={field.type}
 						required={field.required}
 						class="w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-ink focus:border-accent"
 					/>

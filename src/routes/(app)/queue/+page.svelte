@@ -17,14 +17,12 @@
 
 	function batchLinkHref(b: { kind: string; sourceId: string }): string {
 		switch (b.kind) {
-			case 'album':
-				return `/album/${b.sourceId}`;
-			case 'artist':
-				return `/artist/${b.sourceId}`;
+			case 'channel':
+				return `/channel/${b.sourceId}`;
 			case 'playlist':
 				return `/playlist/${b.sourceId}`;
-			case 'song':
-				return `/song/${b.sourceId}`;
+			case 'video':
+				return `/video/${b.sourceId}`;
 			default:
 				return '#';
 		}
@@ -32,7 +30,7 @@
 </script>
 
 <svelte:head>
-	<title>Queue - myoutarr</title>
+	<title>Queue - youtarr</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
@@ -54,7 +52,7 @@
 </div>
 
 {#if queue.batches.length === 0}
-	<p class="mt-16 text-center text-ink-muted">Nothing here yet - find an album and hit download.</p>
+	<p class="mt-16 text-center text-ink-muted">Nothing here yet - find a video and hit download.</p>
 {/if}
 
 <div class="space-y-6">
@@ -73,7 +71,7 @@
 						<a href={batchLinkHref(batch)} class="hover:underline">{batch.title}</a>
 					</p>
 					<p class="truncate text-xs text-ink-muted">
-						{batch.artist ?? ''} · {batch.kind} · {done.length}/{batch.jobs.length} done
+						{batch.channel ?? ''} · {batch.kind} · {done.length}/{batch.jobs.length} done
 					</p>
 				</div>
 				{#if batch.kind === 'playlist'}
@@ -117,7 +115,7 @@
 							<span class="w-20 shrink-0 text-xs {statusStyles[job.status]}">{job.status}</span>
 							<div class="min-w-0 flex-1">
 								<p class="truncate text-sm text-ink">
-									<a href="/song/{job.videoId}" class="hover:underline">{job.meta.title}</a>
+									<a href="/video/{job.videoId}" class="hover:underline">{job.meta.title}</a>
 								</p>
 								{#if job.status === 'running'}
 									<div class="mt-1 h-1 overflow-hidden rounded-full bg-surface-3">

@@ -9,7 +9,7 @@ let dir: string;
 let db: DB;
 
 beforeEach(() => {
-	dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-db-'));
+	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-db-'));
 	db = openDatabase(path.join(dir, 'test.db'));
 });
 

@@ -3,27 +3,27 @@
 @import 'tailwindcss';
 
 /*
- * "Nocturne & Brass" - deep indigo-black canvas, warm paper ink, a brass
- * accent with a violet counterpoint. Record-sleeve lounge, not video platform.
+ * "Signal & Static" - deep teal-black canvas, cool paper ink, a signal-teal
+ * accent with an amber counterpoint. Tape-archive control room, not a music lounge.
  * Components only ever use these semantic tokens; retheming is a token swap.
  */
 @theme {
-	--color-canvas: #0b0b12;
-	--color-surface: #131320;
-	--color-surface-2: #1c1c2c;
-	--color-surface-3: #2a2a40;
-	--color-line: #26263a;
+	--color-canvas: #0a1012;
+	--color-surface: #101a1d;
+	--color-surface-2: #17262a;
+	--color-surface-3: #22383e;
+	--color-line: #1f3237;
 
-	--color-ink: #f2efe7;
-	--color-ink-muted: #a8a49a;
-	--color-ink-faint: #6d6a63;
+	--color-ink: #eaf2f1;
+	--color-ink-muted: #9db0af;
+	--color-ink-faint: #5f7375;
 
-	--color-accent: #e0a458;
-	--color-accent-hover: #f0b96e;
-	--color-accent-ink: #1a1206;
+	--color-accent: #2dd4bf;
+	--color-accent-hover: #5eead4;
+	--color-accent-ink: #04211d;
 
-	--color-counter: #8b7cf8;
-	--color-counter-soft: #372f6e;
+	--color-counter: #f2a340;
+	--color-counter-soft: #4a3418;
 
 	--color-ok: #5fbf77;
 	--color-warn: #e6c76a;
@@ -98,7 +98,7 @@
 		overflow: hidden;
 	}
 
-	/* Ambient wash behind hero headers (artist/album pages). */
+	/* Ambient wash behind hero headers (channel/playlist pages). */
 	.hero-wash {
 		background:
 			radial-gradient(

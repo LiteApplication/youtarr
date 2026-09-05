@@ -140,7 +140,7 @@ describe('publish', () => {
 	let scratch: string;
 
 	beforeEach(() => {
-		dir = mkdtempSync(path.join(tmpdir(), 'myoutarr-publish-'));
+		dir = mkdtempSync(path.join(tmpdir(), 'youtarr-publish-'));
 		library = path.join(dir, 'music');
 		staging = path.join(library, '.staging');
 		scratch = path.join(dir, 'scratch');

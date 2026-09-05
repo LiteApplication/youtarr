@@ -1,5 +1,5 @@
-import { readTags } from '$lib/server/library/browse';
-import { applyTags } from '$lib/server/library/edit';
+import { readEpisodeInfo } from '$lib/server/library/browse';
+import { applyVideoTags } from '$lib/server/library/edit';
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -7,9 +7,9 @@ export const load: PageServerLoad = async ({ url }) => {
 	const relative = url.searchParams.get('path');
 	if (!relative) error(400, 'path query parameter required');
 	try {
-		return { path: relative, tags: await readTags(relative) };
+		return { path: relative, tags: readEpisodeInfo(relative) };
 	} catch (cause) {
-		error(404, `Could not read tags: ${(cause as Error).message}`);
+		error(404, `Could not read episode info: ${(cause as Error).message}`);
 	}
 };
 
@@ -18,21 +18,22 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const relative = String(form.get('path') ?? '');
 		const title = String(form.get('title') ?? '').trim();
-		const artist = String(form.get('artist') ?? '').trim();
-		const album = String(form.get('album') ?? '').trim();
-		if (!relative || !title || !artist || !album) {
-			return fail(400, { error: 'Title, artist, and album are required.' });
+		const channel = String(form.get('channel') ?? '').trim();
+		const season = String(form.get('season') ?? '').trim();
+		const episodeRaw = String(form.get('episode') ?? '').trim();
+		const episode = Number(episodeRaw);
+		if (!relative || !title || !channel || !season || !episodeRaw || !Number.isInteger(episode)) {
+			return fail(400, { error: 'Title, channel, season, and episode number are required.' });
 		}
-		const trackRaw = String(form.get('trackNumber') ?? '').trim();
+		const airedRaw = String(form.get('aired') ?? '').trim();
 		try {
-			const result = await applyTags(relative, {
+			const result = await applyVideoTags(relative, {
 				title,
-				artist,
-				album,
-				albumArtist: String(form.get('albumArtist') ?? '').trim() || undefined,
-				year: String(form.get('year') ?? '').trim() || undefined,
-				genre: String(form.get('genre') ?? '').trim() || undefined,
-				trackNumber: trackRaw ? Number(trackRaw) : undefined
+				channel,
+				season,
+				episode,
+				// The <input type="date"> gives YYYY-MM-DD; NFOs (and JobMeta) use YYYYMMDD.
+				aired: airedRaw ? airedRaw.replaceAll('-', '') : undefined
 			});
 			redirect(
 				303,
