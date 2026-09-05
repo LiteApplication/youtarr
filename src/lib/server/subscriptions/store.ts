@@ -42,7 +42,13 @@ function rowToSubscription(row: SubscriptionRow): Subscription {
  * anything.
  */
 export function subscribe(
-	input: { channelRef: string; channelId: string; name: string; thumbnail: string | null; createdBy: string },
+	input: {
+		channelRef: string;
+		channelId: string;
+		name: string;
+		thumbnail: string | null;
+		createdBy: string;
+	},
 	seedVideoIds: string[],
 	db: DB = getDb()
 ): Subscription {
@@ -57,7 +63,14 @@ export function subscribe(
 		 ON CONFLICT (channel_ref, created_by, video_id) DO NOTHING`
 	);
 	db.transaction(() => {
-		upsertSub.run(input.channelRef, input.channelId, input.name, input.thumbnail, input.createdBy, now);
+		upsertSub.run(
+			input.channelRef,
+			input.channelId,
+			input.name,
+			input.thumbnail,
+			input.createdBy,
+			now
+		);
 		for (const videoId of seedVideoIds)
 			upsertSeen.run(input.channelRef, input.createdBy, videoId, now);
 	})();
@@ -95,7 +108,9 @@ export function isSubscribed(channelRef: string, createdBy: string, db: DB = get
 /** One user's channel subscriptions. */
 export function listSubscriptions(createdBy: string, db: DB = getDb()): Subscription[] {
 	const rows = db
-		.prepare('SELECT * FROM channel_subscriptions WHERE created_by = ? ORDER BY name COLLATE NOCASE')
+		.prepare(
+			'SELECT * FROM channel_subscriptions WHERE created_by = ? ORDER BY name COLLATE NOCASE'
+		)
 		.all(createdBy) as SubscriptionRow[];
 	return rows.map(rowToSubscription);
 }

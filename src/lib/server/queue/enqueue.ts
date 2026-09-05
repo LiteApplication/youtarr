@@ -1,7 +1,12 @@
 import type { DB } from '../db/index.ts';
 import { getDb } from '../db/index.ts';
 import { publish } from '../events.ts';
-import { resolveChannel, resolvePlaylist, resolveVideo, type VideoResult } from '../ytdlp/metadata.ts';
+import {
+	resolveChannel,
+	resolvePlaylist,
+	resolveVideo,
+	type VideoResult
+} from '../ytdlp/metadata.ts';
 import type { Batch, JobMeta, NewTrack } from './store.ts';
 import { createBatch, findCompletedDownload } from './store.ts';
 

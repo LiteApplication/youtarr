@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobMeta } from '../queue/store.ts';
 import { renderTemplate, resolveLibraryPath, sanitizeSegment } from './naming.ts';
-import { albumNfo, artistNfo } from './nfo.ts';
+import { episodeNfo, tvshowNfo } from './nfo.ts';
 import { assertMounted, createSentinel, MountMissingError, publishFile } from './publish.ts';
 
 describe('sanitizeSegment', () => {
@@ -40,96 +40,102 @@ describe('sanitizeSegment', () => {
 
 describe('renderTemplate', () => {
 	const meta: JobMeta = {
-		title: 'One More Time',
-		artist: 'Daft Punk',
-		album: 'Discovery',
-		albumArtist: 'Daft Punk',
-		year: '2001',
-		trackNumber: 1
+		title: 'Episode One',
+		channel: 'My Channel',
+		uploadDate: '20230115'
 	};
 
 	it('renders the default template', () => {
-		expect(renderTemplate('{albumartist}/{album} ({year})/{track:02} - {title}', meta)).toBe(
-			'Daft Punk/Discovery (2001)/01 - One More Time'
-		);
+		expect(
+			renderTemplate(
+				'{channel}/Season {season}/{channel} - S{season}E{episode:03} - {title}',
+				meta,
+				1
+			)
+		).toBe('My Channel/Season 2023/My Channel - S2023E001 - Episode One');
 	});
 
-	it('drops empty parens when year is missing', () => {
-		const noYear = { ...meta, year: undefined };
-		expect(renderTemplate('{albumartist}/{album} ({year})/{track:02} - {title}', noYear)).toBe(
-			'Daft Punk/Discovery/01 - One More Time'
-		);
+	it('falls back to season "00" when the upload date is missing', () => {
+		const noDate = { ...meta, uploadDate: undefined };
+		expect(
+			renderTemplate(
+				'{channel}/Season {season}/{channel} - S{season}E{episode:03} - {title}',
+				noDate,
+				1
+			)
+		).toBe('My Channel/Season 00/My Channel - S00E001 - Episode One');
 	});
 
 	it('sanitises hostile metadata inside the template', () => {
-		const hostile = { ...meta, albumArtist: '../..', album: 'x/../../etc' };
-		const rendered = renderTemplate('{albumartist}/{album}/{title}', hostile);
+		const hostile = { ...meta, channel: '../..', title: 'x/../../etc' };
+		const rendered = renderTemplate('{channel}/{title}', hostile, 1);
 		expect(rendered).not.toContain('..');
 	});
 });
 
 describe('resolveLibraryPath', () => {
 	it('accepts paths inside the root', () => {
-		expect(resolveLibraryPath('/music', 'A/B/01 - T', 'opus')).toBe('/music/A/B/01 - T.opus');
+		expect(resolveLibraryPath('/media', 'A/Season 2023/A - S2023E001', 'mp4')).toBe(
+			'/media/A/Season 2023/A - S2023E001.mp4'
+		);
 	});
 
 	it('rejects escapes even if sanitisation were bypassed', () => {
-		expect(() => resolveLibraryPath('/music', '../evil', 'opus')).toThrow(/escapes library root/);
-		expect(() => resolveLibraryPath('/music', 'A/../../evil', 'opus')).toThrow(
+		expect(() => resolveLibraryPath('/media', '../evil', 'mp4')).toThrow(/escapes library root/);
+		expect(() => resolveLibraryPath('/media', 'A/../../evil', 'mp4')).toThrow(
 			/escapes library root/
 		);
 	});
 });
 
 describe('nfo generation', () => {
-	it('escapes XML-hostile band names', () => {
-		const xml = albumNfo({
+	it('escapes XML-hostile channel names', () => {
+		const xml = tvshowNfo({
 			title: 'Mezzanine <Deluxe> & "Remastered"',
-			albumArtist: "Simon & Garfunkel's",
-			year: '1998',
-			tracks: [{ position: 1, title: 'Angel <live>' }]
+			channelId: 'UC123',
+			plot: 'A "great" <channel>'
 		});
 		expect(xml).toContain('Mezzanine &lt;Deluxe&gt; &amp; &quot;Remastered&quot;');
-		expect(xml).toContain('Simon &amp; Garfunkel&apos;s');
-		expect(xml).toContain('<title>Angel &lt;live&gt;</title>');
+		expect(xml).toContain('A &quot;great&quot; &lt;channel&gt;');
 		expect(xml).not.toMatch(/<Deluxe>/);
 	});
 
-	it('lists each credited artist separately, and only when they are known', () => {
-		const collab = albumNfo({
-			title: 'Watch the Throne',
-			albumArtist: 'Jay-Z, Kanye West',
-			albumArtists: ['Jay-Z', 'Kanye West'],
-			tracks: []
-		});
-		expect(collab).toContain('<artist>Jay-Z</artist>');
-		expect(collab).toContain('<artist>Kanye West</artist>');
-		expect(collab).toContain('<albumartist>Kanye West</albumartist>');
+	it('emits a youtube uniqueid when a channel id is present', () => {
+		const withId = tvshowNfo({ title: 'T', channelId: 'UC123' });
+		expect(withId).toContain('<uniqueid type="youtube" default="true">UC123</uniqueid>');
 
-		// Without a verified list the combined credit stays one element - an
-		// unsplit name beats inventing artists that never existed.
-		const single = albumNfo({ title: 'Gratitude', albumArtist: 'Earth, Wind & Fire', tracks: [] });
-		expect(single).toContain('<artist>Earth, Wind &amp; Fire</artist>');
-		expect(single.match(/<artist>/g)).toHaveLength(1);
+		const withoutId = tvshowNfo({ title: 'T' });
+		expect(withoutId).not.toContain('<uniqueid');
 	});
 
-	it('emits MBIDs and genres when present', () => {
-		const xml = albumNfo({
+	it('renders episode nfo with season, episode, and converted aired date', () => {
+		const xml = episodeNfo({
+			title: 'Episode One',
+			showTitle: 'My Channel',
+			season: '2023',
+			episode: 1,
+			aired: '20230115',
+			videoId: 'abc123',
+			plot: 'A video'
+		});
+		expect(xml).toContain('<title>Episode One</title>');
+		expect(xml).toContain('<showtitle>My Channel</showtitle>');
+		expect(xml).toContain('<season>2023</season>');
+		expect(xml).toContain('<episode>1</episode>');
+		expect(xml).toContain('<aired>2023-01-15</aired>');
+		expect(xml).toContain('<uniqueid type="youtube" default="true">abc123</uniqueid>');
+	});
+
+	it('episode nfo defaults an invalid season to 1 and omits aired when unparseable', () => {
+		const xml = episodeNfo({
 			title: 'T',
-			albumArtist: 'A',
-			genres: ['Electronic', 'House'],
-			mbAlbumId: 'mbid-album',
-			mbReleaseGroupId: 'mbid-rg',
-			tracks: []
+			showTitle: 'S',
+			season: '00',
+			episode: 1,
+			videoId: 'v1'
 		});
-		expect(xml).toContain('<musicbrainzalbumid>mbid-album</musicbrainzalbumid>');
-		expect(xml).toContain('<genre>Electronic</genre>');
-		expect(xml).toContain('<genre>House</genre>');
-	});
-
-	it('artist nfo defaults sortname to name', () => {
-		const xml = artistNfo({ name: 'Daft Punk' });
-		expect(xml).toContain('<sortname>Daft Punk</sortname>');
+		expect(xml).toContain('<season>1</season>');
+		expect(xml).not.toContain('<aired>');
 	});
 });
 
@@ -141,7 +147,7 @@ describe('publish', () => {
 
 	beforeEach(() => {
 		dir = mkdtempSync(path.join(tmpdir(), 'youtarr-publish-'));
-		library = path.join(dir, 'music');
+		library = path.join(dir, 'media');
 		staging = path.join(library, '.staging');
 		scratch = path.join(dir, 'scratch');
 		mkdirSync(library, { recursive: true });
@@ -151,11 +157,11 @@ describe('publish', () => {
 	afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 	it('refuses to write without the mount sentinel', () => {
-		writeFileSync(path.join(scratch, 'a.opus'), 'audio');
+		writeFileSync(path.join(scratch, 'a.mp4'), 'video');
 		expect(() =>
 			publishFile({
-				sourcePath: path.join(scratch, 'a.opus'),
-				targetPath: path.join(library, 'A/B/01.opus'),
+				sourcePath: path.join(scratch, 'a.mp4'),
+				targetPath: path.join(library, 'A/Season 2023/01.mp4'),
 				jobId: 'j1',
 				libraryRoot: library,
 				staging
@@ -166,10 +172,10 @@ describe('publish', () => {
 
 	it('publishes atomically once the sentinel exists and cleans staging', () => {
 		createSentinel(library);
-		writeFileSync(path.join(scratch, 'a.opus'), 'audio-bytes');
-		const target = path.join(library, 'A/B/01.opus');
+		writeFileSync(path.join(scratch, 'a.mp4'), 'video-bytes');
+		const target = path.join(library, 'A/Season 2023/01.mp4');
 		publishFile({
-			sourcePath: path.join(scratch, 'a.opus'),
+			sourcePath: path.join(scratch, 'a.mp4'),
 			targetPath: target,
 			jobId: 'j1',
 			libraryRoot: library,

@@ -67,7 +67,10 @@ export async function checkSubscription(
 		console.log(`subscription: enqueued ${tracks.length} video(s) from ${sub.name}`);
 		return { enqueued: 1, batchIds: [batch.id] };
 	} catch (cause) {
-		console.error(`subscription: failed to enqueue uploads for ${sub.name}:`, (cause as Error).message);
+		console.error(
+			`subscription: failed to enqueue uploads for ${sub.name}:`,
+			(cause as Error).message
+		);
 		return { enqueued: 0, batchIds: [] };
 	}
 }

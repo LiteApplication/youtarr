@@ -40,13 +40,13 @@ afterEach(() => {
 function tracks(n: number): NewTrack[] {
 	return Array.from({ length: n }, (_, i) => ({
 		videoId: `v${i}`,
-		meta: { title: `Track ${i}`, artist: 'A', album: 'B', trackNumber: i + 1 }
+		meta: { title: `Video ${i}`, channel: 'A' }
 	}));
 }
 
 function makeBatch(n = 3) {
 	return createBatch(
-		{ kind: 'album', sourceId: 's1', title: 'Album', createdBy: 'u1' },
+		{ kind: 'channel', sourceId: 's1', title: 'Channel', createdBy: 'u1' },
 		tracks(n),
 		db
 	);
@@ -54,7 +54,7 @@ function makeBatch(n = 3) {
 
 describe('skip already-downloaded', () => {
 	it('finds a completed download by video id when its file still exists', () => {
-		const existing = path.join(dir, 'Track 0.opus');
+		const existing = path.join(dir, 'Video 0.mp4');
 		writeFileSync(existing, 'x');
 		const { jobs } = makeBatch(1);
 		completeJob(jobs[0].id, existing, db);
@@ -63,23 +63,23 @@ describe('skip already-downloaded', () => {
 
 	it('does not skip when the earlier file is gone', () => {
 		const { jobs } = makeBatch(1);
-		completeJob(jobs[0].id, path.join(dir, 'missing.opus'), db);
+		completeJob(jobs[0].id, path.join(dir, 'missing.mp4'), db);
 		expect(findCompletedDownload(jobs[0].videoId, db)).toBeNull();
 		expect(findCompletedDownload('never-downloaded', db)).toBeNull();
 	});
 
 	it('inserts a pre-completed job for a track with existingPath (no re-download)', () => {
-		const existing = path.join(dir, 'have.opus');
+		const existing = path.join(dir, 'have.mp4');
 		writeFileSync(existing, 'x');
 		const { jobs } = createBatch(
 			{ kind: 'playlist', sourceId: 'p1', title: 'Mix', createdBy: 'u1' },
 			[
 				{
 					videoId: 'have',
-					meta: { title: 'Have', artist: 'A', album: 'B' },
+					meta: { title: 'Have', channel: 'A' },
 					existingPath: existing
 				},
-				{ videoId: 'need', meta: { title: 'Need', artist: 'A', album: 'B' } }
+				{ videoId: 'need', meta: { title: 'Need', channel: 'A' } }
 			],
 			db
 		);
@@ -101,8 +101,8 @@ describe('queue store', () => {
 
 	it('refuses an empty batch', () => {
 		expect(() =>
-			createBatch({ kind: 'album', sourceId: 's', title: 'T', createdBy: 'u' }, [], db)
-		).toThrow(/no downloadable tracks/);
+			createBatch({ kind: 'channel', sourceId: 's', title: 'T', createdBy: 'u' }, [], db)
+		).toThrow(/no downloadable videos/);
 	});
 
 	it('claims jobs in position order, one at a time', () => {
@@ -192,11 +192,11 @@ describe('queue store', () => {
 	it('completes a job with its output path', () => {
 		makeBatch(1);
 		const job = claimNextJob(db)!;
-		completeJob(job.id, '/music/A/B/01 - Track 0.opus', db);
+		completeJob(job.id, '/media/A/Season 2024/A - S2024E01 - Video 0.mp4', db);
 		const stored = listQueue('u1', db)[0].jobs[0];
 		expect(stored.status).toBe('completed');
 		expect(stored.progress).toBe(1);
-		expect(stored.outputPath).toBe('/music/A/B/01 - Track 0.opus');
+		expect(stored.outputPath).toBe('/media/A/Season 2024/A - S2024E01 - Video 0.mp4');
 	});
 
 	it('lists only terminal jobs as recent history, most recent first', () => {
@@ -204,7 +204,7 @@ describe('queue store', () => {
 		makeBatch(3);
 		const a = claimNextJob(db)!;
 		vi.setSystemTime(1000);
-		completeJob(a.id, '/music/x.opus', db);
+		completeJob(a.id, '/media/x.mp4', db);
 		const b = claimNextJob(db)!;
 		vi.setSystemTime(2000); // b finishes strictly after a
 		failJob(b.id, 'boom', { maxRetries: 0, retryable: false }, db);
@@ -217,10 +217,10 @@ describe('queue store', () => {
 		expect(log[0].id).toBe(b.id);
 		expect(log[0].status).toBe('failed');
 		expect(log[0].error).toBe('boom');
-		expect(log[0].title).toBe('Track 1');
-		expect(log[0].batchTitle).toBe('Album');
+		expect(log[0].title).toBe('Video 1');
+		expect(log[0].batchTitle).toBe('Channel');
 		expect(log[1].id).toBe(a.id);
-		expect(log[1].outputPath).toBe('/music/x.opus');
+		expect(log[1].outputPath).toBe('/media/x.mp4');
 	});
 });
 

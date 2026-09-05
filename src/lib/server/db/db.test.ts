@@ -26,7 +26,7 @@ describe('database', () => {
 			.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
 			.all() as { name: string }[];
 		const names = tables.map((t) => t.name);
-		for (const expected of ['settings', 'sessions', 'batches', 'jobs', 'mb_cache']) {
+		for (const expected of ['settings', 'sessions', 'batches', 'jobs']) {
 			expect(names).toContain(expected);
 		}
 	});
@@ -42,7 +42,7 @@ describe('database', () => {
 
 	it('cascades job deletion when a batch is removed', () => {
 		db.prepare(
-			"INSERT INTO batches (id, kind, source_id, title, created_at, created_by) VALUES ('b1', 'album', 's1', 'T', 0, 'u')"
+			"INSERT INTO batches (id, kind, source_id, title, created_at, created_by) VALUES ('b1', 'channel', 's1', 'T', 0, 'u')"
 		).run();
 		db.prepare(
 			"INSERT INTO jobs (id, batch_id, video_id, position) VALUES ('j1', 'b1', 'v1', 0)"
@@ -53,7 +53,7 @@ describe('database', () => {
 
 	it('rejects invalid job status via CHECK constraint', () => {
 		db.prepare(
-			"INSERT INTO batches (id, kind, source_id, title, created_at, created_by) VALUES ('b1', 'album', 's1', 'T', 0, 'u')"
+			"INSERT INTO batches (id, kind, source_id, title, created_at, created_by) VALUES ('b1', 'channel', 's1', 'T', 0, 'u')"
 		).run();
 		expect(() =>
 			db
@@ -71,12 +71,12 @@ describe('settings', () => {
 	});
 
 	it('round-trips a partial update', () => {
-		const updated = updateSettings({ audioFormat: 'mp3', concurrency: 4 }, db);
-		expect(updated.audioFormat).toBe('mp3');
+		const updated = updateSettings({ videoFormat: 'mkv', concurrency: 4 }, db);
+		expect(updated.videoFormat).toBe('mkv');
 		expect(updated.concurrency).toBe(4);
 		expect(updated.sponsorBlock).toBe(defaults.sponsorBlock);
 		// A fresh read sees the persisted values.
-		expect(getSettings(db).audioFormat).toBe('mp3');
+		expect(getSettings(db).videoFormat).toBe('mkv');
 	});
 
 	it('ignores unknown keys from stale clients', () => {
@@ -86,9 +86,9 @@ describe('settings', () => {
 
 	it('falls back to defaults for corrupt or type-mismatched rows', () => {
 		db.prepare("INSERT INTO settings (key, value) VALUES ('concurrency', 'not json')").run();
-		db.prepare("INSERT INTO settings (key, value) VALUES ('audioFormat', '123')").run();
+		db.prepare("INSERT INTO settings (key, value) VALUES ('videoFormat', '123')").run();
 		const s = getSettings(db);
 		expect(s.concurrency).toBe(defaults.concurrency);
-		expect(s.audioFormat).toBe(defaults.audioFormat);
+		expect(s.videoFormat).toBe(defaults.videoFormat);
 	});
 });

@@ -59,15 +59,15 @@ Gluster stores raw numeric UIDs. `PUID`/`PGID` must resolve to the **same numeri
 ## Configuration
 
 | Env var                    | Default              | Purpose                                                            |
-| -------------------------- | --------------------- | ------------------------------------------------------------------ |
-| `PORT`                     | `8687`                | HTTP port                                                          |
-| `PUID` / `PGID`            | `1000`                | Filesystem identity for written files                              |
-| `CONFIG_DIR` / `MEDIA_DIR` | `/config` / `/media`  | Data locations                                                     |
-| `REQUIRE_ADMIN`            | `true`                | Only Jellyfin admins may sign in                                   |
-| `YTDLP_AUTO_UPDATE`        | `false`               | Update yt-dlp at container start (YouTube breaks it periodically)  |
-| `BODY_SIZE_LIMIT`          | `500M`                | Upload size cap                                                    |
-| `POT_PROVIDER_BASE_URL`    | _(unset)_             | URL of a bgutil PO Token provider (see below); empty = disabled    |
-| `YTDLP_JS_RUNTIMES`        | `node` (in image)     | JS runtime for yt-dlp's signature/n-challenge solver; empty = Deno |
+| -------------------------- | -------------------- | ------------------------------------------------------------------ |
+| `PORT`                     | `8687`               | HTTP port                                                          |
+| `PUID` / `PGID`            | `1000`               | Filesystem identity for written files                              |
+| `CONFIG_DIR` / `MEDIA_DIR` | `/config` / `/media` | Data locations                                                     |
+| `REQUIRE_ADMIN`            | `true`               | Only Jellyfin admins may sign in                                   |
+| `YTDLP_AUTO_UPDATE`        | `false`              | Update yt-dlp at container start (YouTube breaks it periodically)  |
+| `BODY_SIZE_LIMIT`          | `500M`               | Upload size cap                                                    |
+| `POT_PROVIDER_BASE_URL`    | _(unset)_            | URL of a bgutil PO Token provider (see below); empty = disabled    |
+| `YTDLP_JS_RUNTIMES`        | `node` (in image)    | JS runtime for yt-dlp's signature/n-challenge solver; empty = Deno |
 
 Any env var can be supplied as a Docker secret: set `<NAME>_FILE=/run/secrets/<name>` - secret files are read before plain env vars.
 

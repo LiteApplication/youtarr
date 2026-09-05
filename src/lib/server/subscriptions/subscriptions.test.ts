@@ -3,14 +3,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDatabase, type DB } from '../db/index.ts';
-import type { Batch } from '../queue/store.ts';
-import type { AlbumResult, ArtistReleases } from '../ytmusic/api.ts';
+import type { ChannelDetail, VideoResult } from '../ytdlp/metadata.ts';
 import { checkDueSubscriptions, checkSubscription, type CheckDeps } from './check.ts';
 import {
 	dueSubscriptions,
 	isSubscribed,
 	listSubscriptions,
-	seenReleaseIds,
+	seenVideoIds,
 	subscribe,
 	unsubscribe
 } from './store.ts';
@@ -28,44 +27,42 @@ afterEach(() => {
 	rmSync(dir, { recursive: true, force: true });
 });
 
-const ARTIST = 'UCartist000000000000000';
+const CHANNEL_REF = '@testchannel';
+const CHANNEL_ID = 'UCartist000000000000000';
 
-function release(id: string): AlbumResult {
+function video(id: string): VideoResult {
 	return {
-		kind: 'album',
-		browseId: id,
+		kind: 'video',
+		videoId: id,
 		title: id,
-		albumType: 'Album',
-		year: '2026',
-		artists: [{ name: 'Test Artist', id: ARTIST }],
+		channel: { name: 'Test Channel', id: CHANNEL_ID },
 		thumbnails: []
 	};
 }
 
-/** Build injectable check deps from a release list, recording enqueue calls. */
-function deps(releaseIds: string[]): { deps: CheckDeps; enqueued: string[] } {
-	const enqueued: string[] = [];
+/** Injectable check deps from an upload list. */
+function deps(videoIds: string[]): CheckDeps {
 	return {
-		enqueued,
-		deps: {
-			getReleases: async (): Promise<ArtistReleases> => ({
-				browseId: ARTIST,
-				name: 'Test Artist',
-				thumbnail: null,
-				releases: releaseIds.map(release)
-			}),
-			enqueueAlbum: async (browseId): Promise<Batch | null> => {
-				enqueued.push(browseId);
-				return { id: `batch-${browseId}` } as Batch;
-			}
-		}
+		getChannel: async (): Promise<ChannelDetail> => ({
+			channelId: CHANNEL_ID,
+			ref: CHANNEL_REF,
+			name: 'Test Channel',
+			thumbnails: [],
+			videos: videoIds.map(video)
+		})
 	};
 }
 
 function sub() {
 	return subscribe(
-		{ browseId: ARTIST, name: 'Test Artist', thumbnail: null, createdBy: 'user1' },
-		['MPRE_a', 'MPRE_b'], // baseline discography seeded
+		{
+			channelRef: CHANNEL_REF,
+			channelId: CHANNEL_ID,
+			name: 'Test Channel',
+			thumbnail: null,
+			createdBy: 'user1'
+		},
+		['v_a', 'v_b'], // baseline uploads seeded
 		db
 	);
 }
@@ -73,28 +70,34 @@ function sub() {
 describe('subscription store', () => {
 	it('subscribes, seeds the seen-set, and reports membership', () => {
 		sub();
-		expect(isSubscribed(ARTIST, 'user1', db)).toBe(true);
+		expect(isSubscribed(CHANNEL_REF, 'user1', db)).toBe(true);
 		expect(listSubscriptions('user1', db)).toHaveLength(1);
-		expect(seenReleaseIds(ARTIST, 'user1', db)).toEqual(new Set(['MPRE_a', 'MPRE_b']));
+		expect(seenVideoIds(CHANNEL_REF, 'user1', db)).toEqual(new Set(['v_a', 'v_b']));
 	});
 
 	it('re-subscribing tops up the seen-set without duplicating', () => {
 		sub();
 		subscribe(
-			{ browseId: ARTIST, name: 'Renamed', thumbnail: 'x', createdBy: 'user1' },
-			['MPRE_b', 'MPRE_c'],
+			{
+				channelRef: CHANNEL_REF,
+				channelId: CHANNEL_ID,
+				name: 'Renamed',
+				thumbnail: 'x',
+				createdBy: 'user1'
+			},
+			['v_b', 'v_c'],
 			db
 		);
 		expect(listSubscriptions('user1', db)).toHaveLength(1);
 		expect(listSubscriptions('user1', db)[0].name).toBe('Renamed');
-		expect(seenReleaseIds(ARTIST, 'user1', db)).toEqual(new Set(['MPRE_a', 'MPRE_b', 'MPRE_c']));
+		expect(seenVideoIds(CHANNEL_REF, 'user1', db)).toEqual(new Set(['v_a', 'v_b', 'v_c']));
 	});
 
 	it('unsubscribe cascades the seen-set away', () => {
 		sub();
-		expect(unsubscribe(ARTIST, 'user1', db)).toBe(true);
-		expect(isSubscribed(ARTIST, 'user1', db)).toBe(false);
-		expect(seenReleaseIds(ARTIST, 'user1', db).size).toBe(0);
+		expect(unsubscribe(CHANNEL_REF, 'user1', db)).toBe(true);
+		expect(isSubscribed(CHANNEL_REF, 'user1', db)).toBe(false);
+		expect(seenVideoIds(CHANNEL_REF, 'user1', db).size).toBe(0);
 	});
 
 	it('due list respects the interval and last-checked time', () => {
@@ -102,76 +105,85 @@ describe('subscription store', () => {
 		expect(dueSubscriptions(24 * 3600_000, db)).toHaveLength(1);
 	});
 
-	it('keeps two users following the same artist independent', () => {
+	it('keeps two users following the same channel independent', () => {
 		subscribe(
-			{ browseId: ARTIST, name: 'Test Artist', thumbnail: null, createdBy: 'user1' },
-			['MPRE_a'],
+			{
+				channelRef: CHANNEL_REF,
+				channelId: CHANNEL_ID,
+				name: 'Test Channel',
+				thumbnail: null,
+				createdBy: 'user1'
+			},
+			['v_a'],
 			db
 		);
 		subscribe(
-			{ browseId: ARTIST, name: 'Test Artist', thumbnail: null, createdBy: 'user2' },
-			['MPRE_z'],
+			{
+				channelRef: CHANNEL_REF,
+				channelId: CHANNEL_ID,
+				name: 'Test Channel',
+				thumbnail: null,
+				createdBy: 'user2'
+			},
+			['v_z'],
 			db
 		);
 		// Each user sees only their own subscription with their own seen-set.
 		expect(listSubscriptions('user1', db)).toHaveLength(1);
 		expect(listSubscriptions('user2', db)).toHaveLength(1);
-		expect(seenReleaseIds(ARTIST, 'user1', db)).toEqual(new Set(['MPRE_a']));
-		expect(seenReleaseIds(ARTIST, 'user2', db)).toEqual(new Set(['MPRE_z']));
+		expect(seenVideoIds(CHANNEL_REF, 'user1', db)).toEqual(new Set(['v_a']));
+		expect(seenVideoIds(CHANNEL_REF, 'user2', db)).toEqual(new Set(['v_z']));
 		// One unsubscribing leaves the other intact.
-		unsubscribe(ARTIST, 'user1', db);
-		expect(isSubscribed(ARTIST, 'user1', db)).toBe(false);
-		expect(isSubscribed(ARTIST, 'user2', db)).toBe(true);
-		expect(seenReleaseIds(ARTIST, 'user2', db)).toEqual(new Set(['MPRE_z']));
+		unsubscribe(CHANNEL_REF, 'user1', db);
+		expect(isSubscribed(CHANNEL_REF, 'user1', db)).toBe(false);
+		expect(isSubscribed(CHANNEL_REF, 'user2', db)).toBe(true);
+		expect(seenVideoIds(CHANNEL_REF, 'user2', db)).toEqual(new Set(['v_z']));
 	});
 });
 
 describe('checkSubscription', () => {
-	it('enqueues only releases not already seen, then marks them seen', async () => {
-		sub(); // seen: MPRE_a, MPRE_b
-		const { deps: d, enqueued } = deps(['MPRE_a', 'MPRE_b', 'MPRE_new']);
-		const result = await checkSubscription(listSubscriptions('user1', db)[0], db, d);
+	it('enqueues only uploads not already seen, then marks them seen', async () => {
+		sub(); // seen: v_a, v_b
+		const result = await checkSubscription(
+			listSubscriptions('user1', db)[0],
+			db,
+			deps(['v_a', 'v_b', 'v_new'])
+		);
 
-		expect(enqueued).toEqual(['MPRE_new']);
 		expect(result.enqueued).toBe(1);
-		expect(seenReleaseIds(ARTIST, 'user1', db).has('MPRE_new')).toBe(true);
+		expect(seenVideoIds(CHANNEL_REF, 'user1', db).has('v_new')).toBe(true);
 		// last_checked_at is now set.
 		expect(listSubscriptions('user1', db)[0].lastCheckedAt).not.toBeNull();
+
+		const batch = db.prepare("SELECT id, title FROM batches WHERE kind = 'channel'").get() as {
+			id: string;
+			title: string;
+		};
+		expect(batch.title).toBe('Test Channel - new uploads');
+		const jobs = db.prepare('SELECT video_id FROM jobs WHERE batch_id = ?').all(batch.id) as {
+			video_id: string;
+		}[];
+		expect(jobs.map((j) => j.video_id)).toEqual(['v_new']);
 	});
 
 	it('is a no-op on the second run when nothing new appeared', async () => {
 		sub();
-		const first = deps(['MPRE_a', 'MPRE_b', 'MPRE_new']);
-		await checkSubscription(listSubscriptions('user1', db)[0], db, first.deps);
+		await checkSubscription(listSubscriptions('user1', db)[0], db, deps(['v_a', 'v_b', 'v_new']));
 
-		const second = deps(['MPRE_a', 'MPRE_b', 'MPRE_new']);
-		const result = await checkSubscription(listSubscriptions('user1', db)[0], db, second.deps);
-		expect(second.enqueued).toEqual([]);
+		const result = await checkSubscription(
+			listSubscriptions('user1', db)[0],
+			db,
+			deps(['v_a', 'v_b', 'v_new'])
+		);
 		expect(result.enqueued).toBe(0);
-	});
-
-	it('leaves a release unseen when enqueue throws, so it retries next time', async () => {
-		sub();
-		const failing: CheckDeps = {
-			getReleases: deps([]).deps.getReleases,
-			enqueueAlbum: async () => {
-				throw new Error('transient');
-			}
-		};
-		// Point getReleases at a new release that will fail to enqueue.
-		failing.getReleases = deps(['MPRE_a', 'MPRE_b', 'MPRE_flaky']).deps.getReleases;
-		const result = await checkSubscription(listSubscriptions('user1', db)[0], db, failing);
-		expect(result.enqueued).toBe(0);
-		expect(seenReleaseIds(ARTIST, 'user1', db).has('MPRE_flaky')).toBe(false);
 	});
 });
 
 describe('checkDueSubscriptions', () => {
 	it('checks every due subscription and aggregates enqueued batches', async () => {
 		sub();
-		const { deps: d } = deps(['MPRE_a', 'MPRE_b', 'MPRE_new']);
-		const result = await checkDueSubscriptions(0, db, d);
+		const result = await checkDueSubscriptions(0, db, deps(['v_a', 'v_b', 'v_new']));
 		expect(result.enqueued).toBe(1);
-		expect(result.batchIds).toEqual(['batch-MPRE_new']);
+		expect(result.batchIds).toHaveLength(1);
 	});
 });

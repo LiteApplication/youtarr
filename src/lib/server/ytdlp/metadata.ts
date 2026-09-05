@@ -44,7 +44,8 @@ export class MetadataError extends Error {}
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{6,20}$/;
 const PLAYLIST_ID = /^[A-Za-z0-9_-]{2,64}$/;
-const CHANNEL_REF = /^(@[\w.-]{1,100}|channel\/UC[\w-]{10,40}|c\/[\w.-]{1,100}|user\/[\w.-]{1,100})$/;
+const CHANNEL_REF =
+	/^(@[\w.-]{1,100}|channel\/UC[\w-]{10,40}|c\/[\w.-]{1,100}|user\/[\w.-]{1,100})$/;
 
 export function assertVideoId(id: string): void {
 	if (!VIDEO_ID.test(id)) throw new MetadataError(`invalid video id: ${JSON.stringify(id)}`);
@@ -163,10 +164,7 @@ export async function searchVideos(
 	const safeQuery = query.replace(/[\r\n]/g, ' ').trim();
 	if (!safeQuery) return [];
 	const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 50);
-	const data = await ytdlpJson(
-		['--flat-playlist', `ytsearch${safeLimit}:${safeQuery}`],
-		deps
-	);
+	const data = await ytdlpJson(['--flat-playlist', `ytsearch${safeLimit}:${safeQuery}`], deps);
 	const entries = data.entries ?? [];
 	return entries.filter((e) => e?.id).map(rowToVideo);
 }
@@ -212,10 +210,7 @@ export async function resolveChannel(
 	assertChannelRef(ref);
 	const limit = Math.min(Math.max(1, options.limit ?? 100), 500);
 	const url = `https://www.youtube.com/${ref}/videos`;
-	const data = await ytdlpJson(
-		['--flat-playlist', '--playlist-end', String(limit), url],
-		deps
-	);
+	const data = await ytdlpJson(['--flat-playlist', '--playlist-end', String(limit), url], deps);
 	const entries = (data.entries ?? []).filter((e) => e?.id);
 	return {
 		channelId: data.channel_id ?? data.uploader_id ?? ref,

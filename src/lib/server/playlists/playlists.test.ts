@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDatabase, type DB } from '../db/index.ts';
-import type { PlaylistDetail, SongResult } from '../ytmusic/api.ts';
+import type { PlaylistDetail, VideoResult } from '../ytdlp/metadata.ts';
 import { checkPlaylistSubscription, type PlaylistCheckDeps } from './check.ts';
 import {
 	duePlaylistSubscriptions,
@@ -30,36 +30,34 @@ afterEach(() => {
 
 const PLAYLIST = 'VLPL0000000000';
 
-function song(videoId: string): SongResult {
+function video(videoId: string): VideoResult {
 	return {
-		kind: 'song',
+		kind: 'video',
 		videoId,
 		title: videoId,
-		artists: [{ name: 'Test Artist', id: null }],
-		album: null,
-		duration: '3:00',
+		channel: { name: 'Test Channel', id: 'UC1' },
 		thumbnails: []
 	};
 }
 
-/** Injectable check deps that serve the given tracklist for the playlist. */
+/** Injectable check deps that serve the given video list for the playlist. */
 function deps(videoIds: string[]): PlaylistCheckDeps {
 	return {
 		getPlaylist: async (): Promise<PlaylistDetail> => ({
-			browseId: PLAYLIST,
+			playlistId: PLAYLIST,
 			title: 'My Mix',
-			author: 'Test Artist',
-			trackCount: videoIds.length,
+			channel: { name: 'Test Channel', id: 'UC1' },
+			videoCount: videoIds.length,
 			thumbnails: [],
-			tracks: videoIds.map(song)
+			videos: videoIds.map(video)
 		})
 	};
 }
 
 function sub() {
 	return subscribePlaylist(
-		{ browseId: PLAYLIST, title: 'My Mix', thumbnail: null, createdBy: 'user1' },
-		['a', 'b'], // baseline tracklist seeded
+		{ playlistId: PLAYLIST, title: 'My Mix', thumbnail: null, createdBy: 'user1' },
+		['a', 'b'], // baseline video list seeded
 		db
 	);
 }
@@ -76,7 +74,7 @@ describe('playlist subscription store', () => {
 		sub();
 		setPlaylistEnabled(PLAYLIST, 'user1', false, db);
 		subscribePlaylist(
-			{ browseId: PLAYLIST, title: 'Renamed', thumbnail: 'x', createdBy: 'user1' },
+			{ playlistId: PLAYLIST, title: 'Renamed', thumbnail: 'x', createdBy: 'user1' },
 			['b', 'c'],
 			db
 		);
@@ -102,7 +100,7 @@ describe('playlist subscription store', () => {
 });
 
 describe('checkPlaylistSubscription', () => {
-	it('enqueues only songs added since following, then marks them seen', async () => {
+	it('enqueues only videos added since following, then marks them seen', async () => {
 		sub(); // seen: a, b
 		const result = await checkPlaylistSubscription(
 			listPlaylistSubscriptions('user1', db)[0],
@@ -114,7 +112,7 @@ describe('checkPlaylistSubscription', () => {
 		expect(seenVideoIds(PLAYLIST, 'user1', db).has('c')).toBe(true);
 		expect(listPlaylistSubscriptions('user1', db)[0].lastCheckedAt).not.toBeNull();
 
-		// The new song became a playlist batch with one queued job for 'c'.
+		// The new video became a playlist batch with one queued job for 'c'.
 		const batch = db.prepare("SELECT id, title FROM batches WHERE kind = 'playlist'").get() as {
 			id: string;
 			title: string;

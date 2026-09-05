@@ -17,7 +17,7 @@ export default defineConfig({
 		// The e2e suite boots against a throwaway config dir; see e2e/setup.
 		env: {
 			CONFIG_DIR: process.env.CONFIG_DIR ?? './e2e/.tmp/config',
-			MUSIC_DIR: process.env.MUSIC_DIR ?? './e2e/.tmp/music'
+			MEDIA_DIR: process.env.MEDIA_DIR ?? './e2e/.tmp/media'
 		}
 	}
 });

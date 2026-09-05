@@ -78,7 +78,12 @@ export class YtdlpPipeline implements JobRunner {
 			const channelId = job.meta.channelId ?? job.meta.channel;
 			const season = seasonFor(job.meta);
 			const episode = nextEpisodeNumber(channelId, season, this.db);
-			const relative = renderTemplate(getSettings(this.db).namingTemplate, job.meta, episode, season);
+			const relative = renderTemplate(
+				getSettings(this.db).namingTemplate,
+				job.meta,
+				episode,
+				season
+			);
 			const targetPath = resolveLibraryPath(libraryRoot, relative, ext);
 
 			this.publishWithRetryClassification(videoFile, targetPath, job.id, libraryRoot);

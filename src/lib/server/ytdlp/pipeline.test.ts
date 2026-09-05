@@ -10,18 +10,19 @@ import { WorkerPool } from '../queue/worker.ts';
 import { YtdlpPipeline } from './runner.ts';
 
 const HERE = import.meta.dirname;
-const PROJECT = path.resolve(HERE, '../../../..');
-const PYTHON = path.join(PROJECT, '.venv/bin/python');
+// fake_ytdlp.py only uses the stdlib (no mutagen/tagging step exists anymore),
+// so plain python3 on PATH is enough - no venv needed.
+const PYTHON = 'python3';
 // Per-file fixture path: test files run in parallel workers, so a shared name
 // would let one worker read the fixture while another is mid-ffmpeg-write.
-const FIXTURE = path.join(tmpdir(), 'youtarr-fixture-pipeline.opus');
+const FIXTURE = path.join(tmpdir(), 'youtarr-fixture-pipeline.mp4');
 
 // Wrapper so the pipeline can spawn "yt-dlp" as a single binary path.
 let fakeBin: string;
 
 beforeAll(() => {
 	if (!existsSync(FIXTURE)) {
-		// 2 seconds of A440 - a real, taggable Opus file.
+		// 1 second of a solid-color frame - a real, playable MP4 file.
 		execFileSync('ffmpeg', [
 			'-y',
 			'-loglevel',
@@ -29,9 +30,11 @@ beforeAll(() => {
 			'-f',
 			'lavfi',
 			'-i',
-			'sine=frequency=440:duration=2',
-			'-c:a',
-			'libopus',
+			'color=c=blue:size=64x64:duration=1',
+			'-c:v',
+			'libx264',
+			'-pix_fmt',
+			'yuv420p',
 			FIXTURE
 		]);
 	}
@@ -51,7 +54,7 @@ let staging: string;
 beforeEach(() => {
 	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-pipe-'));
 	db = openDatabase(path.join(dir, 'test.db'));
-	library = path.join(dir, 'music');
+	library = path.join(dir, 'media');
 	scratch = path.join(dir, 'scratch');
 	staging = path.join(library, '.youtarr-staging');
 	mkdirSync(library, { recursive: true });
@@ -70,8 +73,6 @@ function pipeline(): YtdlpPipeline {
 	return new YtdlpPipeline({
 		db,
 		ytdlpBin: fakeBin,
-		pythonBin: PYTHON,
-		tagScript: path.join(PROJECT, 'python/tag.py'),
 		libraryRoot: library,
 		staging,
 		scratchRoot: scratch,
@@ -79,33 +80,32 @@ function pipeline(): YtdlpPipeline {
 	});
 }
 
-function seedAlbum() {
+function seedChannel() {
 	return createBatch(
-		{ kind: 'album', sourceId: 'MPREb_x', title: 'Discovery', artist: 'Daft Punk', createdBy: 'u' },
+		{
+			kind: 'channel',
+			sourceId: 'UC123',
+			title: 'My Channel',
+			channel: 'My Channel',
+			createdBy: 'u'
+		},
 		[
 			{
 				videoId: 'IluRBvnYMoY',
 				meta: {
 					title: 'One More Time',
-					artist: 'Daft Punk, Romanthony',
-					artists: ['Daft Punk', 'Romanthony'],
-					album: 'Discovery',
-					albumArtist: 'Daft Punk',
-					year: '2001',
-					trackNumber: 1,
-					totalTracks: 2
+					channel: 'My Channel',
+					channelId: 'UC123',
+					uploadDate: '20230101'
 				}
 			},
 			{
 				videoId: 'FGBhQbmPwH8',
 				meta: {
 					title: 'Aerodynamic <live> & loud',
-					artist: 'Daft Punk',
-					album: 'Discovery',
-					albumArtist: 'Daft Punk',
-					year: '2001',
-					trackNumber: 2,
-					totalTracks: 2
+					channel: 'My Channel',
+					channelId: 'UC123',
+					uploadDate: '20230102'
 				}
 			}
 		],
@@ -114,9 +114,10 @@ function seedAlbum() {
 }
 
 describe('full pipeline', () => {
-	it('downloads, tags, publishes, and writes NFOs end to end', async () => {
-		const { batch } = seedAlbum();
-		const pool = new WorkerPool(pipeline(), { db, concurrency: () => 2, maxRetries: () => 0 });
+	it('downloads, publishes, and writes NFOs end to end', async () => {
+		const { batch } = seedChannel();
+		// concurrency 1 keeps episode-number assignment order deterministic.
+		const pool = new WorkerPool(pipeline(), { db, concurrency: () => 1, maxRetries: () => 0 });
 		pool.start();
 		const start = Date.now();
 		while (listQueue('u', db)[0].jobs.some((j) => !['completed', 'failed'].includes(j.status))) {
@@ -128,29 +129,23 @@ describe('full pipeline', () => {
 		const jobs = listQueue('u', db)[0].jobs;
 		expect(jobs.map((j) => j.status)).toEqual(['completed', 'completed']);
 
-		const albumDir = path.join(library, 'Daft Punk', 'Discovery (2001)');
-		expect(existsSync(path.join(albumDir, '01 - One More Time.opus'))).toBe(true);
+		const seasonDir = path.join(library, 'My Channel', 'Season 2023');
+		expect(existsSync(path.join(seasonDir, 'My Channel - S2023E001 - One More Time.mp4'))).toBe(
+			true
+		);
 		// XML-hostile title survived sanitisation into a safe filename…
-		expect(existsSync(path.join(albumDir, '02 - Aerodynamic _live_ & loud.opus'))).toBe(true);
+		expect(
+			existsSync(path.join(seasonDir, 'My Channel - S2023E002 - Aerodynamic _live_ & loud.mp4'))
+		).toBe(true);
 
 		// …and was escaped inside the NFO.
-		const nfo = readFileSync(path.join(albumDir, 'album.nfo'), 'utf8');
-		expect(nfo).toContain('Aerodynamic &lt;live&gt; &amp; loud');
-		expect(nfo).toContain('<year>2001</year>');
-		expect(existsSync(path.join(library, 'Daft Punk', 'artist.nfo'))).toBe(true);
-
-		// Real mutagen tags in the real Opus file.
-		const probe = execFileSync(PYTHON, [
-			'-c',
-			`from mutagen.oggopus import OggOpus; a = OggOpus(${JSON.stringify(
-				path.join(albumDir, '01 - One More Time.opus')
-			)}); print(a['title'][0], '|', a['album'][0], '|', a['date'][0], '|', a['tracknumber'][0], '|', '+'.join(a['artist']), '|', '+'.join(a['albumartist']))`
-		]).toString();
-		// Each credited artist is its own tag value, so Jellyfin lists them
-		// separately; the album artist stays the single act that owns the folder.
-		expect(probe.trim()).toBe(
-			'One More Time | Discovery | 2001 | 1 | Daft Punk+Romanthony | Daft Punk'
+		const nfo = readFileSync(
+			path.join(seasonDir, 'My Channel - S2023E002 - Aerodynamic _live_ & loud.nfo'),
+			'utf8'
 		);
+		expect(nfo).toContain('Aerodynamic &lt;live&gt; &amp; loud');
+		expect(nfo).toContain('<season>2023</season>');
+		expect(existsSync(path.join(library, 'My Channel', 'tvshow.nfo'))).toBe(true);
 
 		// Scratch and staging fully cleaned.
 		expect(existsSync(path.join(staging, jobs[0].id))).toBe(false);
@@ -161,7 +156,7 @@ describe('full pipeline', () => {
 
 	it('classifies permanent failures without retrying', async () => {
 		process.env.FAKE_YTDLP_MODE = 'fail-permanent';
-		seedAlbum();
+		seedChannel();
 		const job = claimNextJob(db)!;
 		const failure = await pipeline()
 			.run(job, () => {}, new AbortController().signal)
@@ -175,7 +170,7 @@ describe('full pipeline', () => {
 
 	it('classifies transient failures as retryable', async () => {
 		process.env.FAKE_YTDLP_MODE = 'fail-transient';
-		seedAlbum();
+		seedChannel();
 		const job = claimNextJob(db)!;
 		await expect(pipeline().run(job, () => {}, new AbortController().signal)).rejects.toMatchObject(
 			{ retryable: true }
@@ -183,7 +178,7 @@ describe('full pipeline', () => {
 	});
 
 	it('reports monotonic progress during a run', async () => {
-		seedAlbum();
+		seedChannel();
 		const job = claimNextJob(db)!;
 		const fractions: number[] = [];
 		await pipeline().run(job, (f) => fractions.push(f), new AbortController().signal);

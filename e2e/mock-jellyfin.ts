@@ -28,7 +28,7 @@ export function startMockJellyfin(port: number): Promise<http.Server> {
 			return;
 		}
 		if (url.startsWith('/Library/VirtualFolders')) {
-			return send(200, [{ Name: 'Tunes', CollectionType: 'music', Locations: ['/data/music'] }]);
+			return send(200, [{ Name: 'Shows', CollectionType: 'tvshows', Locations: ['/data/tv'] }]);
 		}
 		if (url.startsWith('/Library/Refresh')) {
 			res.writeHead(204).end();

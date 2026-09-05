@@ -30,7 +30,8 @@ export function tvshowNfo(input: TvShowNfoInput): string {
 	let xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n<tvshow>\n';
 	xml += tag('title', input.title);
 	xml += tag('plot', input.plot);
-	if (input.channelId) xml += `  <uniqueid type="youtube" default="true">${esc(input.channelId)}</uniqueid>\n`;
+	if (input.channelId)
+		xml += `  <uniqueid type="youtube" default="true">${esc(input.channelId)}</uniqueid>\n`;
 	xml += '</tvshow>\n';
 	return xml;
 }

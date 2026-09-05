@@ -40,12 +40,12 @@ test('setup wizard: connect, authenticate, pick a library', async ({ page }) => 
 	await page.getByRole('button', { name: 'Sign in and continue' }).click();
 
 	// Step 3: the library pick, fed from the mock's VirtualFolders.
-	await expect(page.getByText('Tunes')).toBeVisible();
+	await expect(page.getByText('Shows')).toBeVisible();
 	await page.getByRole('radio').first().check();
 	await page.getByRole('button', { name: 'Finish setup' }).click();
 
 	await expect(page).toHaveURL('/');
-	await expect(page.getByText('Find music for your Jellyfin library')).toBeVisible();
+	await expect(page.getByText('Save video for your Jellyfin library')).toBeVisible();
 });
 
 /** Sessions are per-test contexts; sign in through the real login page. */

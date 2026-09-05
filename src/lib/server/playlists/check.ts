@@ -61,9 +61,16 @@ export async function checkPlaylistSubscription(
 			tracks,
 			db
 		);
-		markVideosSeen(sub.playlistId, sub.createdBy, newVideos.map((v) => v.videoId), db);
+		markVideosSeen(
+			sub.playlistId,
+			sub.createdBy,
+			newVideos.map((v) => v.videoId),
+			db
+		);
 		batchIds.push(batch.id);
-		console.log(`playlist sync: enqueued ${newVideos.length} new video(s) from "${playlist.title}"`);
+		console.log(
+			`playlist sync: enqueued ${newVideos.length} new video(s) from "${playlist.title}"`
+		);
 	}
 
 	markPlaylistChecked(sub.playlistId, sub.createdBy, db);

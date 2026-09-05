@@ -22,9 +22,8 @@
 						class="h-14 w-24 rounded object-cover bg-surface-3"
 					/>
 					<div class="min-w-0 flex-1">
-						<a
-							href="/video/{video.videoId}"
-							class="block truncate text-sm text-ink hover:underline">{video.title}</a
+						<a href="/video/{video.videoId}" class="block truncate text-sm text-ink hover:underline"
+							>{video.title}</a
 						>
 						<p class="truncate text-xs text-ink-muted">{video.channel.name}</p>
 					</div>

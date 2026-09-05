@@ -3,8 +3,8 @@ import { buildYtdlpArgs } from './args.ts';
 import { parseProgressLine } from './progress.ts';
 
 const settings = {
-	audioFormat: 'opus' as const,
-	audioQuality: 0,
+	videoFormat: 'mp4' as const,
+	maxResolution: '1080' as const,
 	sponsorBlock: true,
 	rateLimit: '',
 	ytdlpPlayerClient: 'tv'
@@ -13,11 +13,22 @@ const settings = {
 describe('buildYtdlpArgs', () => {
 	it('builds a complete argv for a normal id', () => {
 		const args = buildYtdlpArgs({ videoId: 'IluRBvnYMoY', scratchDir: '/scratch/j1', settings });
-		expect(args).toContain('--extract-audio');
-		expect(args).toContain('opus');
+		expect(args).toContain('--merge-output-format');
+		expect(args).toContain('--remux-video');
+		expect(args).toContain('mp4');
+		expect(args).toContain('bestvideo[height<=1080]+bestaudio/best[height<=1080]');
 		expect(args).toContain('--sponsorblock-remove');
-		expect(args.at(-1)).toBe('https://music.youtube.com/watch?v=IluRBvnYMoY');
+		expect(args.at(-1)).toBe('https://www.youtube.com/watch?v=IluRBvnYMoY');
 		expect(args.at(-2)).toBe('--');
+	});
+
+	it('uses an uncapped format when maxResolution is "best"', () => {
+		const args = buildYtdlpArgs({
+			videoId: 'IluRBvnYMoY',
+			scratchDir: '/s',
+			settings: { ...settings, maxResolution: 'best' }
+		});
+		expect(args).toContain('bestvideo+bestaudio/best');
 	});
 
 	it('rejects hostile video ids before they reach any process boundary', () => {
@@ -153,7 +164,7 @@ describe('parseProgressLine', () => {
 	});
 
 	it('ignores non-JSON and non-progress lines', () => {
-		expect(parseProgressLine('[ExtractAudio] Destination: track.opus')).toBeNull();
+		expect(parseProgressLine('[Merger] Merging formats into "video.mp4"')).toBeNull();
 		expect(parseProgressLine('{"status": "postprocessing"}')).toBeNull();
 		expect(parseProgressLine('{broken json')).toBeNull();
 		expect(parseProgressLine('')).toBeNull();

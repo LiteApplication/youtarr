@@ -122,7 +122,9 @@
 					checked={settings.sponsorBlock}
 					class="accent-accent"
 				/>
-				<span class="text-sm text-ink"> SponsorBlock: strip sponsor/self-promo segments from downloads </span>
+				<span class="text-sm text-ink">
+					SponsorBlock: strip sponsor/self-promo segments from downloads
+				</span>
 			</label>
 		</section>
 

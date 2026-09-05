@@ -59,8 +59,8 @@
 				New uploads from followed channels download automatically, checked about every
 				{data.checkHours} hour{data.checkHours === 1 ? '' : 's'}.
 			{:else}
-				Auto-download is <span class="text-accent-hover">disabled</span> in settings — followed
-				channels won't be checked.
+				Auto-download is <span class="text-accent-hover">disabled</span> in settings — followed channels
+				won't be checked.
 			{/if}
 		</p>
 	</div>

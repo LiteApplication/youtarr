@@ -10,17 +10,17 @@ import type { JellyfinClient } from './client.ts';
 import { syncDownloadsPlaylist } from './downloads.ts';
 
 let dir: string;
-let music: string;
+let media: string;
 let db: DB;
 
 beforeEach(() => {
 	dir = mkdtempSync(path.join(tmpdir(), 'youtarr-downloads-'));
-	music = path.join(dir, 'music');
-	mkdirSync(music, { recursive: true });
-	writeFileSync(path.join(music, MOUNT_SENTINEL), 'ok');
-	process.env.MUSIC_DIR = music;
+	media = path.join(dir, 'media');
+	mkdirSync(media, { recursive: true });
+	writeFileSync(path.join(media, MOUNT_SENTINEL), 'ok');
+	process.env.MEDIA_DIR = media;
 	db = openDatabase(path.join(dir, 'test.db'));
-	updateSettings({ jellyfinUrl: 'http://jf:8096', jellyfinLibraryPath: '/data/music' }, db);
+	updateSettings({ jellyfinUrl: 'http://jf:8096', jellyfinLibraryPath: '/data/media' }, db);
 	updateUserSettings('u1', { downloadsPlaylist: true }, db);
 	db.prepare(
 		`INSERT INTO sessions (id, jellyfin_token, user_id, user_name, is_admin, created_at, expires_at)
@@ -28,19 +28,19 @@ beforeEach(() => {
 	).run(Date.now(), Date.now() + 60_000);
 	db.prepare(
 		`INSERT INTO batches (id, kind, source_id, title, created_at, created_by)
-		 VALUES ('b1', 'song', 'x', 'Some song', ?, 'u1')`
+		 VALUES ('b1', 'video', 'x', 'Some video', ?, 'u1')`
 	).run(Date.now());
 });
 
 afterEach(() => {
 	db.close();
 	rmSync(dir, { recursive: true, force: true });
-	delete process.env.MUSIC_DIR;
+	delete process.env.MEDIA_DIR;
 });
 
 /** Add a completed job for u1, creating its library file unless `onDisk` is false. */
-function seedTrack(index: number, options: { onDisk?: boolean; batch?: string } = {}): string {
-	const file = path.join(music, `Track ${index}.opus`);
+function seedVideo(index: number, options: { onDisk?: boolean; batch?: string } = {}): string {
+	const file = path.join(media, `Video ${index}.mp4`);
 	if (options.onDisk !== false) writeFileSync(file, 'audio');
 	db.prepare(
 		`INSERT INTO jobs (id, batch_id, video_id, position, status, meta, output_path, finished_at)
@@ -50,7 +50,7 @@ function seedTrack(index: number, options: { onDisk?: boolean; batch?: string } 
 		options.batch ?? 'b1',
 		`v${index}`,
 		index,
-		JSON.stringify({ title: `Track ${index}`, artist: 'A', album: 'B' }),
+		JSON.stringify({ title: `Video ${index}` }),
 		file,
 		Date.now() + index
 	);
@@ -64,7 +64,7 @@ function clientStub(
 	const created: { name: string; ids: string[] }[] = [];
 	const added: string[][] = [];
 	const client = {
-		findAudioByPath: vi.fn(async (_t: string, _title: string, p: string) => pathToId[p] ?? null),
+		findVideoByPath: vi.fn(async (_t: string, _title: string, p: string) => pathToId[p] ?? null),
 		findPlaylist: vi.fn(async () => existing.playlistId ?? null),
 		playlistItemIds: vi.fn(async () => existing.items ?? []),
 		createPlaylist: vi.fn(async (_t: string, _u: string, name: string, ids: string[]) => {
@@ -78,22 +78,22 @@ function clientStub(
 	return { client: client as unknown as JellyfinClient, created, added, spies: client };
 }
 
-const jf = (name: string) => `/data/music/${name}`;
+const jf = (name: string) => `/data/media/${name}`;
 
 describe('syncDownloadsPlaylist', () => {
 	it('does nothing when the user has not enabled it', async () => {
 		updateUserSettings('u1', { downloadsPlaylist: false }, db);
-		seedTrack(0);
-		const { client } = clientStub({ [jf('Track 0.opus')]: 'item-0' });
+		seedVideo(0);
+		const { client } = clientStub({ [jf('Video 0.mp4')]: 'item-0' });
 		expect(await syncDownloadsPlaylist('u1', db, { client, poll: false })).toBeNull();
 	});
 
-	it('creates the playlist from every track added so far, oldest first', async () => {
-		seedTrack(0);
-		seedTrack(1);
+	it('creates the playlist from every video added so far, oldest first', async () => {
+		seedVideo(0);
+		seedVideo(1);
 		const { client, created } = clientStub({
-			[jf('Track 0.opus')]: 'item-0',
-			[jf('Track 1.opus')]: 'item-1'
+			[jf('Video 0.mp4')]: 'item-0',
+			[jf('Video 1.mp4')]: 'item-1'
 		});
 		const result = await syncDownloadsPlaylist('u1', db, { client, poll: false });
 		expect(result).toMatchObject({ playlistId: 'pl-new', added: 2, total: 2 });
@@ -102,17 +102,17 @@ describe('syncDownloadsPlaylist', () => {
 
 	it('uses the configured playlist name when set', async () => {
 		updateUserSettings('u1', { downloadsPlaylistName: 'Alexis Picks' }, db);
-		seedTrack(0);
-		const { client, created } = clientStub({ [jf('Track 0.opus')]: 'item-0' });
+		seedVideo(0);
+		const { client, created } = clientStub({ [jf('Video 0.mp4')]: 'item-0' });
 		await syncDownloadsPlaylist('u1', db, { client, poll: false });
 		expect(created[0].name).toBe('Alexis Picks');
 	});
 
-	it('only adds tracks that are not already in the playlist', async () => {
-		seedTrack(0);
-		seedTrack(1);
+	it('only adds videos that are not already in the playlist', async () => {
+		seedVideo(0);
+		seedVideo(1);
 		const { client, added } = clientStub(
-			{ [jf('Track 0.opus')]: 'item-0', [jf('Track 1.opus')]: 'item-1' },
+			{ [jf('Video 0.mp4')]: 'item-0', [jf('Video 1.mp4')]: 'item-1' },
 			{ playlistId: 'pl-1', items: ['item-0'] }
 		);
 		const result = await syncDownloadsPlaylist('u1', db, { client, poll: false });
@@ -120,39 +120,39 @@ describe('syncDownloadsPlaylist', () => {
 		expect(added).toEqual([['item-1']]);
 	});
 
-	it('resolves each track once, then needs no further Jellyfin searches', async () => {
-		seedTrack(0);
+	it('resolves each video once, then needs no further Jellyfin searches', async () => {
+		seedVideo(0);
 		const { client, spies } = clientStub(
-			{ [jf('Track 0.opus')]: 'item-0' },
+			{ [jf('Video 0.mp4')]: 'item-0' },
 			{ playlistId: 'pl-1', items: ['item-0'] }
 		);
 		await syncDownloadsPlaylist('u1', db, { client, poll: false });
-		expect(spies.findAudioByPath).toHaveBeenCalledTimes(1);
+		expect(spies.findVideoByPath).toHaveBeenCalledTimes(1);
 		await syncDownloadsPlaylist('u1', db, { client, poll: false });
-		expect(spies.findAudioByPath).toHaveBeenCalledTimes(1); // memoised in the db
+		expect(spies.findVideoByPath).toHaveBeenCalledTimes(1); // memoised in the db
 	});
 
-	it('ignores other users tracks', async () => {
+	it("ignores other users' videos", async () => {
 		db.prepare(
 			`INSERT INTO batches (id, kind, source_id, title, created_at, created_by)
-			 VALUES ('b2', 'song', 'y', 'Theirs', ?, 'u2')`
+			 VALUES ('b2', 'video', 'y', 'Theirs', ?, 'u2')`
 		).run(Date.now());
-		seedTrack(0);
-		seedTrack(1, { batch: 'b2' });
+		seedVideo(0);
+		seedVideo(1, { batch: 'b2' });
 		const { client, created } = clientStub({
-			[jf('Track 0.opus')]: 'item-0',
-			[jf('Track 1.opus')]: 'item-1'
+			[jf('Video 0.mp4')]: 'item-0',
+			[jf('Video 1.mp4')]: 'item-1'
 		});
 		await syncDownloadsPlaylist('u1', db, { client, poll: false });
 		expect(created[0].ids).toEqual(['item-0']);
 	});
 
-	it('cancels the job of a track whose file has been deleted, and drops it', async () => {
-		seedTrack(0);
-		const gone = seedTrack(1);
+	it('cancels the job of a video whose file has been deleted, and drops it', async () => {
+		seedVideo(0);
+		const gone = seedVideo(1);
 		const { client, created } = clientStub({
-			[jf('Track 0.opus')]: 'item-0',
-			[jf('Track 1.opus')]: 'item-1'
+			[jf('Video 0.mp4')]: 'item-0',
+			[jf('Video 1.mp4')]: 'item-1'
 		});
 		await syncDownloadsPlaylist('u1', db, { client, poll: false });
 		expect(created[0].ids).toEqual(['item-0', 'item-1']);
@@ -169,13 +169,13 @@ describe('syncDownloadsPlaylist', () => {
 		const members = db
 			.prepare('SELECT path FROM downloads_playlist_items WHERE user_id = ?')
 			.all('u1') as { path: string }[];
-		expect(members.map((m) => m.path)).toEqual([path.join(music, 'Track 0.opus')]);
+		expect(members.map((m) => m.path)).toEqual([path.join(media, 'Video 0.mp4')]);
 	});
 
 	it('never cancels anything when the library mount is missing', async () => {
-		seedTrack(0);
-		rmSync(path.join(music, MOUNT_SENTINEL));
-		rmSync(path.join(music, 'Track 0.opus'));
+		seedVideo(0);
+		rmSync(path.join(media, MOUNT_SENTINEL));
+		rmSync(path.join(media, 'Video 0.mp4'));
 		const { client } = clientStub({});
 		expect(await syncDownloadsPlaylist('u1', db, { client, poll: false })).toBeNull();
 		const row = db.prepare('SELECT status FROM jobs WHERE id = ?').get('j0') as { status: string };
@@ -183,8 +183,8 @@ describe('syncDownloadsPlaylist', () => {
 	});
 
 	it('recreates the playlist when it has been deleted, without re-searching', async () => {
-		seedTrack(0);
-		const first = clientStub({ [jf('Track 0.opus')]: 'item-0' });
+		seedVideo(0);
+		const first = clientStub({ [jf('Video 0.mp4')]: 'item-0' });
 		await syncDownloadsPlaylist('u1', db, { client: first.client, poll: false });
 		expect(
 			(
@@ -202,13 +202,13 @@ describe('syncDownloadsPlaylist', () => {
 		const result = await syncDownloadsPlaylist('u1', db, { client: second.client, poll: false });
 		expect(result).toMatchObject({ playlistId: 'pl-new', added: 1 });
 		expect(second.created[0].ids).toEqual(['item-0']);
-		expect(second.spies.findAudioByPath).not.toHaveBeenCalled();
+		expect(second.spies.findVideoByPath).not.toHaveBeenCalled();
 	});
 
-	it('leaves tracks Jellyfin has not indexed yet for a later run', async () => {
-		seedTrack(0);
-		seedTrack(1);
-		const { client, created } = clientStub({ [jf('Track 0.opus')]: 'item-0' });
+	it('leaves videos Jellyfin has not indexed yet for a later run', async () => {
+		seedVideo(0);
+		seedVideo(1);
+		const { client, created } = clientStub({ [jf('Video 0.mp4')]: 'item-0' });
 		const result = await syncDownloadsPlaylist('u1', db, { client, poll: false });
 		expect(result).toMatchObject({ added: 1, total: 1, cancelled: 0 });
 		expect(created[0].ids).toEqual(['item-0']);
